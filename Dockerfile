@@ -15,9 +15,10 @@ RUN npm run build
 # 2) PHP runtime
 FROM php:8.2-apache
 
-# System libs for the required PHP extensions (gd, pdo_mysql, mbstring, zip).
+# System libs for the required PHP extensions (gd, pdo_mysql, pdo_pgsql, mbstring, zip).
+# libonig-dev provides oniguruma, required to build mbstring.
 RUN apt-get update && apt-get install -y --no-install-recommends \
-        libpng-dev libjpeg-dev libfreetype6-dev libzip-dev libpq-dev zip unzip git \
+        libpng-dev libjpeg-dev libfreetype6-dev libzip-dev libpq-dev libonig-dev zip unzip git \
     && docker-php-ext-configure gd --with-freetype --with-jpeg \
     && docker-php-ext-install -j"$(nproc)" gd pdo_mysql pdo_pgsql mbstring zip \
     && apt-get clean && rm -rf /var/lib/apt/lists/*
