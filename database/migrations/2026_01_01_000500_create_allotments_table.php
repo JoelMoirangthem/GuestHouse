@@ -60,29 +60,44 @@ return new class extends Migration
         /*
          * The concurrency backstop.
          *
-         * `occupies` holds check_in_date only while the allotment actually holds
-         * the room, and NULL otherwise. MySQL permits unlimited NULLs in a unique
-         * index, so cancelled and vacated rows are exempt while two live
-         * allotments cannot share a start date on the same room.
+         * A live allotment (status ALLOTTED or CHECKED_IN) may not share a start
+         * date with another live allotment for the same room. Cancelled and
+         * vacated rows are exempt. This catches identical start dates only, not
+         * partial overlaps; the transaction + row lock in AllotmentService is the
+         * primary defence.
          *
-         * HONEST LIMITATION: this catches identical start dates only, not partial
-         * overlaps. It is a safety net for the case where application logic is
-         * bypassed — the transaction plus row lock in AllotmentService remains the
-         * primary defence. Verified against MySQL 8.4.9: a duplicate active row is
-         * rejected with error 1062.
+         * MySQL and Postgres express this differently, so the statement is chosen
+         * per driver:
+         *   - MySQL: a STORED generated column `occupies` (= check_in_date while
+         *     live, NULL otherwise) + a unique key. MySQL allows unlimited NULLs
+         *     in a unique index, so exempt rows do not collide.
+         *   - Postgres: a partial unique index directly on (room_id, check_in_date)
+         *     WHERE status IN ('ALLOTTED','CHECKED_IN') — no extra column needed.
          */
-        DB::statement("
-            ALTER TABLE allotments
-            ADD COLUMN occupies DATE
-            GENERATED ALWAYS AS (
-                CASE WHEN status IN ('ALLOTTED','CHECKED_IN') THEN check_in_date ELSE NULL END
-            ) STORED
-        ");
+        $driver = Schema::getConnection()->getDriverName();
 
-        DB::statement('ALTER TABLE allotments ADD UNIQUE KEY uq_room_occupies (room_id, occupies)');
+        if ($driver === 'pgsql') {
+            DB::statement("
+                CREATE UNIQUE INDEX uq_room_occupies ON allotments (room_id, check_in_date)
+                WHERE status IN ('ALLOTTED','CHECKED_IN')
+            ");
 
-        DB::statement('ALTER TABLE allotments
-            ADD CONSTRAINT chk_allotment_dates CHECK (check_out_date > check_in_date)');
+            DB::statement('ALTER TABLE allotments
+                ADD CONSTRAINT chk_allotment_dates CHECK (check_out_date > check_in_date)');
+        } else {
+            DB::statement("
+                ALTER TABLE allotments
+                ADD COLUMN occupies DATE
+                GENERATED ALWAYS AS (
+                    CASE WHEN status IN ('ALLOTTED','CHECKED_IN') THEN check_in_date ELSE NULL END
+                ) STORED
+            ");
+
+            DB::statement('ALTER TABLE allotments ADD UNIQUE KEY uq_room_occupies (room_id, occupies)');
+
+            DB::statement('ALTER TABLE allotments
+                ADD CONSTRAINT chk_allotment_dates CHECK (check_out_date > check_in_date)');
+        }
     }
 
     public function down(): void

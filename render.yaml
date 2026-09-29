@@ -1,16 +1,21 @@
 # Render blueprint for the Guest House Booking System.
 # Docs: https://render.com/docs/blueprint-spec
 #
-# This app uses MySQL. Render has no managed MySQL, so create a free MySQL
-# elsewhere (Aiven, Clever Cloud, Railway, PlanetScale) and paste its
-# credentials into the DB_* variables below in the Render dashboard.
+# Fully free: a Docker web service + Render's managed PostgreSQL (free tier).
+# The DB_* variables are wired automatically from the database below, so there
+# is nothing to paste except APP_KEY and APP_URL.
+
+databases:
+  - name: guesthouse-db
+    plan: free
+    databaseName: guesthouse
+    user: guesthouse
 
 services:
   - type: web
     name: guesthouse
     runtime: docker
     plan: free
-    # Health check hits the login page (always 200 for a guest).
     healthCheckPath: /login
     envVars:
       - key: APP_NAME
@@ -19,10 +24,12 @@ services:
         value: production
       - key: APP_DEBUG
         value: "false"
-      # Generate once with:  php artisan key:generate --show
+      # Generate once locally with:  php artisan key:generate --show
+      # then paste the base64:... value in the Render dashboard.
       - key: APP_KEY
         sync: false
-      # Set to your Render URL after first deploy, e.g. https://guesthouse.onrender.com
+      # After the first deploy, set this to your Render URL,
+      # e.g. https://guesthouse.onrender.com
       - key: APP_URL
         sync: false
       - key: APP_TIMEZONE
@@ -32,19 +39,29 @@ services:
       - key: LOG_LEVEL
         value: error
 
-      # --- Database (external MySQL) — fill these in the dashboard ---
+      # --- Database: Render managed PostgreSQL, wired automatically ---
       - key: DB_CONNECTION
-        value: mysql
+        value: pgsql
       - key: DB_HOST
-        sync: false
+        fromDatabase:
+          name: guesthouse-db
+          property: host
       - key: DB_PORT
-        value: "3306"
+        fromDatabase:
+          name: guesthouse-db
+          property: port
       - key: DB_DATABASE
-        sync: false
+        fromDatabase:
+          name: guesthouse-db
+          property: database
       - key: DB_USERNAME
-        sync: false
+        fromDatabase:
+          name: guesthouse-db
+          property: user
       - key: DB_PASSWORD
-        sync: false
+        fromDatabase:
+          name: guesthouse-db
+          property: password
 
       # --- Sessions / cache / queue live in the database (no Redis needed) ---
       - key: SESSION_DRIVER
@@ -56,7 +73,7 @@ services:
       - key: QUEUE_CONNECTION
         value: database
 
-      # --- Mail: log driver by default so nothing tries to send during a demo ---
+      # --- Mail: log driver so nothing tries to send during a demo ---
       - key: MAIL_MAILER
         value: log
       - key: MAIL_FROM_ADDRESS
@@ -80,7 +97,7 @@ services:
       - key: GH_PIN
         value: "226002"
 
-      # Set to "true" for the FIRST deploy only, then change to "false":
-      # this runs `php artisan migrate --seed` to create roles, users, rooms.
+      # Set to "true" for the FIRST deploy only (runs migrate --seed to create
+      # roles, demo users, rooms), then change to "false" and redeploy.
       - key: SEED
         value: "true"

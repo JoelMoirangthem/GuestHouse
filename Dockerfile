@@ -17,9 +17,9 @@ FROM php:8.2-apache
 
 # System libs for the required PHP extensions (gd, pdo_mysql, mbstring, zip).
 RUN apt-get update && apt-get install -y --no-install-recommends \
-        libpng-dev libjpeg-dev libfreetype6-dev libzip-dev zip unzip git \
+        libpng-dev libjpeg-dev libfreetype6-dev libzip-dev libpq-dev zip unzip git \
     && docker-php-ext-configure gd --with-freetype --with-jpeg \
-    && docker-php-ext-install -j"$(nproc)" gd pdo_mysql mbstring zip \
+    && docker-php-ext-install -j"$(nproc)" gd pdo_mysql pdo_pgsql mbstring zip \
     && apt-get clean && rm -rf /var/lib/apt/lists/*
 
 # Composer

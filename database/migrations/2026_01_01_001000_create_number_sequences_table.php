@@ -30,11 +30,24 @@ return new class extends Migration
             $table->timestamp('updated_at')->nullable();
         });
 
+        $driver = DB::connection()->getDriverName();
+
         foreach ([['booking_requests', 'request_no', 'REQ'], ['allotments', 'allotment_no', 'ALT']] as [$table, $col, $prefix]) {
+            // Extract the "PREFIX/YEAR" series and the numeric tail per driver.
+            //   MySQL:    SUBSTRING_INDEX(col,'/',2)  /  CAST(SUBSTRING_INDEX(col,'/',-1) AS UNSIGNED)
+            //   Postgres: split_part(col,'/',1)||'/'||split_part(col,'/',2)  /  split_part(col,'/',3)::int
+            if ($driver === 'pgsql') {
+                $seriesExpr = "split_part({$col}, '/', 1) || '/' || split_part({$col}, '/', 2)";
+                $lastExpr = "MAX(split_part({$col}, '/', 3)::int)";
+            } else {
+                $seriesExpr = "SUBSTRING_INDEX({$col}, '/', 2)";
+                $lastExpr = "MAX(CAST(SUBSTRING_INDEX({$col}, '/', -1) AS UNSIGNED))";
+            }
+
             $rows = DB::table($table)
-                ->selectRaw("SUBSTRING_INDEX({$col}, '/', 2) AS series, MAX(CAST(SUBSTRING_INDEX({$col}, '/', -1) AS UNSIGNED)) AS last")
+                ->selectRaw("{$seriesExpr} AS series, {$lastExpr} AS last")
                 ->where($col, 'like', $prefix.'/%')
-                ->groupBy('series')
+                ->groupBy(DB::raw($seriesExpr))
                 ->get();
 
             foreach ($rows as $r) {
