@@ -1,0 +1,10 @@
+# Ensure shell scripts always use LF endings (they run inside a Linux container).
+*.sh text eol=lf
+docker/entrypoint.sh text eol=lf
+
+# Normalise common text files.
+*.php text
+*.blade.php text
+*.json text
+*.yaml text
+*.yml text

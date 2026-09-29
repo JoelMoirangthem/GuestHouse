@@ -1,0 +1,86 @@
+# Render blueprint for the Guest House Booking System.
+# Docs: https://render.com/docs/blueprint-spec
+#
+# This app uses MySQL. Render has no managed MySQL, so create a free MySQL
+# elsewhere (Aiven, Clever Cloud, Railway, PlanetScale) and paste its
+# credentials into the DB_* variables below in the Render dashboard.
+
+services:
+  - type: web
+    name: guesthouse
+    runtime: docker
+    plan: free
+    # Health check hits the login page (always 200 for a guest).
+    healthCheckPath: /login
+    envVars:
+      - key: APP_NAME
+        value: "Guest House Booking System"
+      - key: APP_ENV
+        value: production
+      - key: APP_DEBUG
+        value: "false"
+      # Generate once with:  php artisan key:generate --show
+      - key: APP_KEY
+        sync: false
+      # Set to your Render URL after first deploy, e.g. https://guesthouse.onrender.com
+      - key: APP_URL
+        sync: false
+      - key: APP_TIMEZONE
+        value: Asia/Kolkata
+      - key: LOG_CHANNEL
+        value: stack
+      - key: LOG_LEVEL
+        value: error
+
+      # --- Database (external MySQL) — fill these in the dashboard ---
+      - key: DB_CONNECTION
+        value: mysql
+      - key: DB_HOST
+        sync: false
+      - key: DB_PORT
+        value: "3306"
+      - key: DB_DATABASE
+        sync: false
+      - key: DB_USERNAME
+        sync: false
+      - key: DB_PASSWORD
+        sync: false
+
+      # --- Sessions / cache / queue live in the database (no Redis needed) ---
+      - key: SESSION_DRIVER
+        value: database
+      - key: SESSION_SECURE_COOKIE
+        value: "true"
+      - key: CACHE_STORE
+        value: database
+      - key: QUEUE_CONNECTION
+        value: database
+
+      # --- Mail: log driver by default so nothing tries to send during a demo ---
+      - key: MAIL_MAILER
+        value: log
+      - key: MAIL_FROM_ADDRESS
+        value: "guesthouse@nadt.gov.in"
+
+      # --- Notifications ---
+      - key: NOTIFY_EMAIL_ENABLED
+        value: "false"
+      - key: NOTIFY_SMS_ENABLED
+        value: "false"
+      - key: NOTIFY_INAPP_ENABLED
+        value: "true"
+
+      # --- Institution details ---
+      - key: GH_INSTITUTION
+        value: "NADT, RC, DTRTI"
+      - key: GH_BUILDING
+        value: "Pragya Bhawan"
+      - key: GH_CITY
+        value: "Lucknow, Uttar Pradesh"
+      - key: GH_PIN
+        value: "226002"
+
+      # Set to "true" for the FIRST deploy only, then change to "false":
+      # this runs `php artisan migrate --seed` to create roles, users, rooms.
+      - key: SEED
+        value: "true"
