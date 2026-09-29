@@ -17,6 +17,17 @@ return Application::configure(basePath: dirname(__DIR__))
             'role' => EnsureRole::class,
         ]);
 
+        // Render (and most PaaS) terminate TLS at a proxy and forward the request
+        // over HTTP with X-Forwarded-* headers. Trust them so the framework knows
+        // the original request was HTTPS — otherwise generated asset URLs come out
+        // as http:// and the browser blocks them as mixed content on an https page.
+        $middleware->trustProxies(at: '*', headers:
+            Illuminate\Http\Request::HEADER_X_FORWARDED_FOR |
+            Illuminate\Http\Request::HEADER_X_FORWARDED_HOST |
+            Illuminate\Http\Request::HEADER_X_FORWARDED_PORT |
+            Illuminate\Http\Request::HEADER_X_FORWARDED_PROTO
+        );
+
         // SECURITY.md section 6 — applied to every web response.
         $middleware->append(SecurityHeaders::class);
     })
