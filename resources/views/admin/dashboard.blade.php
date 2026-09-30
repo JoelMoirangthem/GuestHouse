@@ -18,17 +18,16 @@
             <h2 class="min-w-[9rem] text-center text-sm font-semibold text-[--color-ink]">{{ $month->format('F Y') }}</h2>
             <a href="{{ route('dashboard', ['month' => $next]) }}" class="gh-btn gh-btn-secondary px-2.5" aria-label="Next month">&rarr;</a>
         </nav>
-        <a href="{{ route('reports.index') }}" class="gh-btn gh-btn-secondary">All reports</a>
     </div>
 
-    {{-- Tiles — REPORTS.md section 1. Queue tiles are current counts; the rest are for the month. --}}
+    {{-- Tiles. Queue tiles are current counts; the rest are for the month. --}}
     <div class="mb-6 grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-5">
         @foreach ([
-            ['label' => 'Total requests', 'value' => $tiles['total'], 'hint' => 'Submitted this month', 'href' => route('reports.show', ['type' => 'booking', 'from' => $from, 'to' => $to])],
+            ['label' => 'Total requests', 'value' => $tiles['total'], 'hint' => 'Submitted this month', 'href' => null],
             ['label' => 'Pending (Manager)', 'value' => $tiles['pending_manager'], 'hint' => 'Waiting now, incl. more info', 'href' => null],
             ['label' => 'Pending (ADG)', 'value' => $tiles['pending_adg'], 'hint' => 'Waiting now', 'href' => null],
             ['label' => 'Awaiting availability', 'value' => $tiles['awaiting_allotment'], 'hint' => 'Your queue', 'href' => route('admin.allotments.index')],
-            ['label' => 'Rooms allotted', 'value' => $tiles['rooms_allotted'], 'hint' => 'Rooms, not requests', 'href' => route('reports.show', ['type' => 'allotment', 'from' => $from, 'to' => $to])],
+            ['label' => 'Rooms allotted', 'value' => $tiles['rooms_allotted'], 'hint' => 'Rooms, not requests', 'href' => null],
         ] as $tile)
             <div class="gh-card px-4 py-3.5">
                 <p class="gh-eyebrow">{{ $tile['label'] }}</p>
@@ -51,8 +50,8 @@
     @endif
 
     <div class="grid gap-6 lg:grid-cols-3">
-        {{-- Occupancy by day. Bars carry their value as text for screen readers,
-             and the same numbers are available as a table in the Occupancy report. --}}
+        {{-- Occupancy by day. Bars carry their value as a title and the
+             chart has a text summary for screen readers. --}}
         <div class="gh-card p-5 lg:col-span-2">
             <div class="mb-4 flex items-baseline justify-between gap-3">
                 <h2 class="gh-eyebrow">Occupancy overview</h2>
@@ -73,7 +72,6 @@
             </div>
             <p class="mt-3 text-xs text-[--color-ink-muted]">
                 Rooms occupied each night ÷ rooms in service.
-                <a href="{{ route('reports.show', ['type' => 'occupancy', 'from' => $from, 'to' => $to]) }}" class="underline">See the table</a>.
             </p>
         </div>
 
@@ -108,12 +106,12 @@
         @else
             <div class="overflow-x-auto">
                 <table class="gh-table">
-                    <thead><tr><th scope="col">Request</th><th scope="col">Applicant</th><th scope="col">Stay</th><th scope="col">Rooms needed</th><th scope="col">Status</th></tr></thead>
+                    <thead><tr><th scope="col">Request</th><th scope="col">Guest</th><th scope="col">Stay</th><th scope="col">Rooms needed</th><th scope="col">Status</th></tr></thead>
                     <tbody>
                         @foreach ($queue as $r)
                             <tr>
                                 <td><a href="{{ route('admin.allotments.create', $r) }}" class="font-medium text-navy-800 underline">{{ $r->request_no }}</a></td>
-                                <td class="text-[--color-ink-soft]">{{ $r->requester?->name }}</td>
+                                <td class="text-[--color-ink-soft]">{{ $r->guestName() }}</td>
                                 <td class="text-[--color-ink-soft]">{{ $r->check_in_date->format('d/m/Y') }} &rarr; {{ $r->check_out_date->format('d/m/Y') }}</td>
                                 <td class="text-[--color-ink-soft]">{{ $r->rooms_needed }}</td>
                                 <td><x-status :status="$r->status" /></td>

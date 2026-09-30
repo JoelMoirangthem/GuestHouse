@@ -278,11 +278,28 @@ class BookingRequestSubmissionTest extends TestCase
     }
 
     #[Test]
-    public function an_employee_with_no_reporting_manager_cannot_submit(): void
+    public function an_employee_with_no_reporting_manager_is_routed_to_the_manager(): void
     {
+        // A single Manager handles every booking, so a missing reporting line
+        // must not block submission.
         $orphan = User::factory()->role(RoleSlug::USER)->create(['reporting_manager_id' => null]);
 
         $this->actingAs($orphan)
+            ->post(route('my.requests.store'), $this->payload())
+            ->assertSessionHasNoErrors();
+
+        $request = BookingRequest::firstOrFail();
+        $this->assertSame(RequestStatus::PENDING_MANAGER, $request->status);
+        $this->assertSame($this->manager->id, $request->manager_id);
+    }
+
+    #[Test]
+    public function submission_is_refused_when_no_active_manager_exists(): void
+    {
+        // is_active is deliberately not mass-assignable.
+        $this->manager->forceFill(['is_active' => false])->save();
+
+        $this->actingAs($this->employee)
             ->post(route('my.requests.store'), $this->payload())
             ->assertSessionHasErrors('submit');
 
@@ -292,13 +309,16 @@ class BookingRequestSubmissionTest extends TestCase
     }
 
     #[Test]
-    public function a_managers_own_request_is_routed_to_a_manager_who_can_review_it(): void
+    public function an_adgs_own_request_is_routed_to_a_manager_who_can_review_it(): void
     {
-        // Regression: a Manager (or the ADG) raising their own booking reports up
-        // to the ADG, not to another Manager. The request used to be routed to
-        // that non-manager and sat in a queue no Manager could open — invisible
-        // to the review screen. It must instead reach an active Manager.
-        $this->actingAs($this->manager)
+        // Regression: the ADG (or anyone whose reporting line does not name a
+        // Manager) raising their own booking used to be routed to a non-manager
+        // and sat in a queue no Manager could open — invisible to the review
+        // screen. It must instead reach an active Manager. (The Manager's own
+        // bookings are approved immediately; see ApprovalChainTest.)
+        $adg = User::where('id', $this->manager->reporting_manager_id)->firstOrFail();
+
+        $this->actingAs($adg)
             ->post(route('my.requests.store'), $this->payload())
             ->assertRedirect();
 

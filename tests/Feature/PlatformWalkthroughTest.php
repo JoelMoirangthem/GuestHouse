@@ -121,28 +121,25 @@ class PlatformWalkthroughTest extends TestCase
             ->assertSessionHasNoErrors();
         $this->assertSame(RequestStatus::PENDING_MANAGER, $request->fresh()->status);
 
-        // ---- 3. Manager approves (T2) — the only approval; goes straight to allotment
+        // ---- 3. Manager approves (T2) — the only approval. Room selection is
+        //         mandatory; the Manager holds one of the two rooms needed.
+        $rooms = Room::where('status', RoomStatus::ACTIVE->value)
+            ->whereIn('block', array_keys(config('gh.room_board_blocks')))
+            ->orderBy('id')->limit(2)->pluck('id')->all();
+        $this->assertCount(2, $rooms, 'The seeder must provide at least two active rooms.');
+
         $this->actingAs($this->as['manager'])
-            ->post(route('manager.requests.approve', $request), ['remarks' => 'Approved'])
+            ->post(route('manager.requests.approve', $request), ['remarks' => 'Approved', 'room_ids' => [$rooms[0]]])
             ->assertSessionHasNoErrors();
-        $this->assertSame(RequestStatus::PENDING_ALLOTMENT, $request->fresh()->status);
-        $this->crawlEverything('PENDING_ALLOTMENT', $request);
+        $this->assertSame(RequestStatus::PARTIALLY_ALLOTTED, $request->fresh()->status);
+        $this->crawlEverything('PARTIALLY_ALLOTTED', $request);
 
         // The ADG stage has been removed; its more-info route never existed.
         $this->actingAs($this->as['adg'])
             ->post('/adg/requests/'.$request->id.'/more-info', ['remarks' => 'x'])
             ->assertStatus(404);
 
-        // ---- 4. Admin allots one room, then the second (T9 then T11)
-        $rooms = Room::where('status', RoomStatus::ACTIVE->value)->orderBy('id')->limit(2)->pluck('id')->all();
-        $this->assertCount(2, $rooms, 'The seeder must provide at least two active rooms.');
-
-        $this->actingAs($this->as['admin'])
-            ->post(route('admin.allotments.store', $request), ['room_ids' => [$rooms[0]]])
-            ->assertSessionHasNoErrors();
-        $this->assertSame(RequestStatus::PARTIALLY_ALLOTTED, $request->fresh()->status);
-        $this->crawlEverything('PARTIALLY_ALLOTTED', $request);
-
+        // ---- 4. Admin allots the second room (T11)
         // Decision 9: a partial allotment cannot check in.
         $this->actingAs($this->as['admin'])
             ->post(route('admin.stays.checkIn', $request))
@@ -221,8 +218,9 @@ class PlatformWalkthroughTest extends TestCase
         $this->crawlEverything('CANCELLED', $cancelled);
 
         $noRoom = $this->submitted();
-        $this->actingAs($this->as['manager'])->post(route('manager.requests.approve', $noRoom));
-        $this->actingAs($this->as['adg'])->post(route('adg.requests.approve', $noRoom));
+        // Waiting for the Administration with no room held — as a Manager's own
+        // reservation does. (The Manager can no longer approve without a room.)
+        $noRoom->forceFill(['status' => RequestStatus::PENDING_ALLOTMENT])->save();
         $this->actingAs($this->as['admin'])
             ->post(route('admin.allotments.noRoom', $noRoom), ['reason' => 'Fully booked for the conference'])
             ->assertSessionHasNoErrors();

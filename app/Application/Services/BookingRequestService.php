@@ -33,6 +33,7 @@ class BookingRequestService
         private readonly AuditLogger $audit,
         private readonly NotificationDispatcher $notifications,
         private readonly AllotmentService $allotments,
+        private readonly ApprovalService $approvals,
     ) {}
 
     /**
@@ -99,7 +100,15 @@ class BookingRequestService
             isOwner: $request->isOwnedBy($actor),
         );
 
-        return DB::transaction(function () use ($request, $target, $isResubmission, $action, $actor) {
+        // A booking the Manager makes for themselves (e.g. reserving a room for a
+        // visiting VIP) is a reservation, not a request: the Manager is the only
+        // approver, so it is approved immediately rather than sitting in their
+        // own queue.
+        $isManagerReservation = $request->isOwnedBy($actor)
+            && $actor->isManager()
+            && $actor->is_active;
+
+        return DB::transaction(function () use ($request, $target, $isResubmission, $action, $actor, $isManagerReservation) {
             $from = $request->status;
 
             $request->status = $target;
@@ -110,14 +119,11 @@ class BookingRequestService
                 $request->submitted_at = now();
             }
 
-            // Route to a Manager who can actually act on the request. Normally
-            // that is the requester's reporting manager, but when the reporting
-            // line points at a non-manager (for example a Manager or the ADG
-            // raising their own booking, whose reporting manager is the ADG) the
-            // request would otherwise land in a queue no Manager can open and be
-            // invisible forever. resolveReviewingManagerId() guarantees a valid
-            // Manager is chosen so the request always reaches the review queue.
-            $request->manager_id = $this->resolveReviewingManagerId($request->requester);
+            // Route to the Manager who reviews every booking. See
+            // resolveReviewingManagerId().
+            $request->manager_id = $isManagerReservation
+                ? $actor->id
+                : $this->resolveReviewingManagerId($request->requester);
 
             $request->save();
 
@@ -128,6 +134,17 @@ class BookingRequestService
                 from: $from,
                 to: $target,
             );
+
+            if ($isManagerReservation) {
+                // Recorded as a normal Manager approval (state machine, audit
+                // entry, notification), so the history shows who approved it.
+                return $this->approvals->managerApprove(
+                    $request->refresh(),
+                    $actor,
+                    'Reserved directly by the Manager.',
+                    requireRooms: false,
+                );
+            }
 
             // The Manager needs to know there is something to review. Dispatched
             // after commit so a mail failure cannot lose the submission itself.
@@ -176,22 +193,12 @@ class BookingRequestService
             throw new InvalidTransitionException('A guest visit must name the host employee.');
         }
 
-        // A request must be able to reach a Manager's review queue. For a
-        // regular user that is their reporting manager; for a Manager or the ADG
-        // raising their own booking it is any active Manager. If neither can be
-        // resolved the request has nowhere to go, so we refuse clearly rather
-        // than orphan it in a queue no Manager can open.
+        // A request must be able to reach the Manager's review queue. If there
+        // is no active Manager at all it has nowhere to go, so refuse clearly
+        // rather than orphan it.
         if ($this->resolveReviewingManagerId($request->requester) === null) {
-            $isPrivileged = in_array(
-                $request->requester->roleSlug(),
-                [RoleSlug::MANAGER, RoleSlug::ADG, RoleSlug::ADMIN],
-                true,
-            );
-
             throw new InvalidTransitionException(
-                $isPrivileged
-                    ? 'No Manager is available to review requests. Please contact the administrator.'
-                    : 'Your account has no reporting manager assigned. Please contact the administrator.'
+                'No Manager is available to review requests. Please contact the administrator.'
             );
         }
     }
@@ -286,23 +293,14 @@ class BookingRequestService
     /**
      * Choose the Manager who will review this request.
      *
-     * For a regular user the reviewing manager is their reporting manager, who
-     * is expected to hold the Manager role (the Admin provisions the reporting
-     * line, and a user with no reporting manager is refused by
-     * assertSubmittable()).
+     * The guest house has a single Manager who decides every booking. The
+     * requester's reporting manager is used when it is an active Manager;
+     * otherwise — an employee with no reporting line, or a Manager/ADG raising
+     * their own booking (e.g. a VIP reservation) — the request goes to the
+     * active Manager. The Manager may approve their own request.
      *
-     * A Manager or the ADG may also raise a booking of their own. Their
-     * reporting line points upward — a Manager reports to the ADG, the ADG to
-     * nobody — so it does not name a reviewing Manager. Before this method
-     * existed, manager_id was set from that upward reporting line and the
-     * request landed in a queue no Manager could open, so it never appeared in
-     * the review list. For those roles we route to any active Manager instead,
-     * keeping the request visible and actionable.
-     *
-     * Returns null only when the requester is a user without a valid Manager in
-     * their reporting line, or when the institute has no active Manager at all.
-     * Either way assertSubmittable() turns that into a clear refusal rather than
-     * an orphaned request.
+     * Returns null only when the institute has no active Manager at all;
+     * assertSubmittable() turns that into a clear refusal.
      */
     private function resolveReviewingManagerId(User $requester): ?int
     {
@@ -314,12 +312,6 @@ class BookingRequestService
 
         if ($reportsToAManager) {
             return $reportingManager->id;
-        }
-
-        // Only a Manager or the ADG raising their own request may fall back to
-        // another Manager; a regular user must have a proper reporting manager.
-        if (! in_array($requester->roleSlug(), [RoleSlug::MANAGER, RoleSlug::ADG, RoleSlug::ADMIN], true)) {
-            return null;
         }
 
         return $this->anyActiveManagerId();

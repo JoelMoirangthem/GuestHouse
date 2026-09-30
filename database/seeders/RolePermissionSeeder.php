@@ -67,9 +67,6 @@ class RolePermissionSeeder extends Seeder
         // --- administration
         'master.manage' => ['Manage rooms, types, tariffs, users', 'Administration'],
         'settings.manage' => ['Manage settings and templates', 'Administration'],
-        'report.view.team' => ['View team reports', 'Reports'],
-        'report.view.all' => ['View all reports', 'Reports'],
-        'report.revenue' => ['View the revenue report', 'Reports'],
         'audit.view' => ['View audit logs', 'Administration'],
     ];
 
@@ -85,19 +82,22 @@ class RolePermissionSeeder extends Seeder
         ],
         'manager' => [
             'request.view.team', 'request.approve.manager', 'request.reject.manager',
-            'request.moreinfo.manager', 'report.view.team', 'room.allot.review',
+            'request.moreinfo.manager', 'room.allot.review',
             'request.view.own', 'request.create', 'extension.request', 'feedback.submit',
+            // The single Manager runs the whole booking operation.
+            'request.view.all', 'availability.check', 'availability.recheck',
+            'room.allot', 'room.release', 'inventory.view', 'stay.manage', 'extension.decide',
         ],
         'adg' => [
             'request.view.all', 'request.approve.adg', 'request.reject.adg',
-            'inventory.view', 'report.view.all',
+            'inventory.view',
             'request.view.own', 'request.create', 'extension.request', 'feedback.submit',
         ],
         'admin' => [
             'request.view.all', 'availability.check', 'availability.recheck',
             'room.allot', 'room.release', 'room.block', 'inventory.view',
             'stay.manage', 'extension.decide', 'master.manage', 'settings.manage',
-            'report.view.all', 'report.revenue', 'audit.view',
+            'audit.view',
         ],
     ];
 
@@ -106,9 +106,9 @@ class RolePermissionSeeder extends Seeder
      */
     private const ROLES = [
         'user' => ['User (Employee)', 'Submits booking requests and manages own stays.', 1],
-        'manager' => ['Manager', 'First-level reviewer: approve, reject or request more information.', 2],
+        'manager' => ['Manager', 'Runs every booking: approves with room allotment, check-in, check-out and extensions.', 2],
         'adg' => ['ADG / Approval Authority', 'Second-level approver: approve or reject only.', 3],
-        'admin' => ['Administrator', 'Checks availability, allots rooms, manages masters and reports.', 4],
+        'admin' => ['Administrator', 'Checks availability, allots rooms and manages masters.', 4],
     ];
 
     public function run(): void

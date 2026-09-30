@@ -37,7 +37,7 @@ class RoleIsolationMatrixTest extends TestCase
     }
 
     /**
-     * Every privileged route, mapped to the single role permitted to reach it.
+     * Every privileged route, mapped to the roles permitted to reach it.
      *
      * @return array<string, array{0: string, 1: string}>
      */
@@ -46,21 +46,29 @@ class RoleIsolationMatrixTest extends TestCase
         return [
             'manager queue' => ['manager.requests.index', 'manager'],
             'adg queue' => ['adg.requests.index', 'adg'],
-            'admin inventory' => ['admin.inventory', 'admin'],
+            // Booking operations: the Manager runs them, the Admin can too.
+            'room inventory' => ['admin.inventory', 'manager,admin'],
+            'allotment queue' => ['admin.allotments.index', 'manager,admin'],
+            'front desk' => ['admin.stays.index', 'manager,admin'],
+            // System setup stays with the Admin.
             'admin dashboard' => ['dashboard', 'admin'],
+            'users' => ['admin.users.index', 'admin'],
+            'settings' => ['admin.settings.edit', 'admin'],
         ];
     }
 
     #[Test]
     #[DataProvider('privilegedRoutes')]
-    public function only_the_owning_role_may_reach_a_privileged_route(string $routeName, string $ownerSlug): void
+    public function only_the_owning_role_may_reach_a_privileged_route(string $routeName, string $ownerSlugs): void
     {
+        $owners = explode(',', $ownerSlugs);
+
         foreach (RoleSlug::cases() as $case) {
             $user = $this->userWithRole($case);
 
             $response = $this->actingAs($user)->get(route($routeName));
 
-            if ($case->value === $ownerSlug) {
+            if (in_array($case->value, $owners, true)) {
                 $response->assertOk();
             } else {
                 $response->assertForbidden();

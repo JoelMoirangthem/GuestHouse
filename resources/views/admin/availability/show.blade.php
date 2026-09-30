@@ -13,7 +13,7 @@
                 <p class="gh-eyebrow">Request</p>
                 <p class="mt-1 font-serif text-xl text-navy-900">{{ $request->request_no }}</p>
                 <p class="mt-1 text-sm text-[--color-ink-muted]">
-                    {{ $request->requester->name }} &middot; {{ $request->purpose->label() }}
+                    {{ $request->guestName() }} &middot; {{ $request->bookingSummary() }}
                     &middot; {{ $request->total_members }} {{ Str::plural('person', $request->total_members) }}
                 </p>
             </div>

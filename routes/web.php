@@ -26,7 +26,6 @@ use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\PublicBookingController;
 use App\Http\Controllers\Shared\DocumentController;
 use App\Http\Controllers\Shared\ManagementInventoryController;
-use App\Http\Controllers\Shared\ReportController;
 use App\Http\Controllers\User\BookingRequestController;
 use App\Http\Controllers\User\ExtensionController;
 use App\Http\Controllers\User\FeedbackController;
@@ -139,16 +138,18 @@ Route::middleware('auth')->group(function () {
         Route::get('/inventory', [ManagementInventoryController::class, 'index'])->name('inventory');
     });
 
-    // --- Admin -----------------------------------------------------------
-    // Every availability and allotment route lives here and nowhere else.
-    // Core Rule 2: no other role has any route that reveals room availability.
-    Route::middleware('role:admin')->prefix('admin')->name('admin.')->group(function () {
+    // --- Booking operations (Manager and Admin) ----------------------------
+    // The single Manager runs the whole booking operation: availability,
+    // allotment, check-in / check-out and stay extensions. The Administrator
+    // keeps access too. URLs and route names stay under /admin so every
+    // existing screen and link keeps working.
+    Route::middleware('role:manager,admin')->prefix('admin')->name('admin.')->group(function () {
 
-        // Screen 3.3 — aborts 409 unless the request has cleared both approvals.
+        // Screen 3.3 — aborts 409 unless the request has been approved.
         Route::get('/requests/{bookingRequest}/availability', [AvailabilityController::class, 'show'])
             ->name('availability.show');
 
-        // Screen 3.5 and the administrator's queue.
+        // Screen 3.5 and the allotment queue.
         Route::get('/allotments', [AllotmentController::class, 'index'])->name('allotments.index');
         Route::get('/requests/{bookingRequest}/allot', [AllotmentController::class, 'create'])->name('allotments.create');
         Route::post('/requests/{bookingRequest}/allot', [AllotmentController::class, 'store'])->name('allotments.store');
@@ -167,6 +168,11 @@ Route::middleware('auth')->group(function () {
         Route::post('/extensions/{extension}/deny', [StayController::class, 'denyExtension'])->name('extensions.deny');
 
         Route::get('/inventory', [RoomInventoryController::class, 'index'])->name('inventory');
+    });
+
+    // --- Admin -----------------------------------------------------------
+    // System setup only: masters, settings, templates, audit, mail.
+    Route::middleware('role:admin')->prefix('admin')->name('admin.')->group(function () {
 
         // --- Masters ---
         // No destroy routes: users and rooms are referenced by requests,
@@ -214,17 +220,4 @@ Route::middleware('auth')->group(function () {
     });
 
     Route::middleware('role:admin')->get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
-
-    // --- Reports ---------------------------------------------------------
-    // Manager, ADG and Admin. Which report and whose rows are decided by
-    // ReportService: revenue is admin-only, and a Manager sees only their
-    // reportees in the booking, allotment and user-wise reports.
-    Route::middleware('role:manager,adg,admin')->prefix('reports')->name('reports.')->group(function () {
-        Route::get('/', [ReportController::class, 'index'])->name('index');
-        Route::get('/{type}', [ReportController::class, 'show'])->name('show')
-            ->whereIn('type', array_keys(\App\Application\Services\ReportService::TYPES));
-        Route::get('/{type}/export/{format}', [ReportController::class, 'export'])->name('export')
-            ->whereIn('type', array_keys(\App\Application\Services\ReportService::TYPES))
-            ->whereIn('format', ['xlsx', 'pdf']);
-    });
 });

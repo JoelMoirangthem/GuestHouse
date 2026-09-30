@@ -107,7 +107,7 @@ class DocumentAccessTest extends TestCase
     }
 
     #[Test]
-    public function a_manager_of_a_different_team_is_refused(): void
+    public function any_manager_may_view_it_because_one_manager_handles_every_booking(): void
     {
         $doc = $this->storeRealDocument();
 
@@ -115,7 +115,7 @@ class DocumentAccessTest extends TestCase
 
         $this->actingAs($otherManager)
             ->get(route('documents.show', $doc))
-            ->assertForbidden();
+            ->assertOk();
     }
 
     // ------------------------------------------------- no public URL exists

@@ -33,23 +33,18 @@ class ReviewController extends Controller
 
     public function index(Request $request): View
     {
-        $manager = $request->user();
-
-        // Requests routed to this manager, either explicitly or through the
-        // reporting line.
+        // One Manager decides every booking, so the queue is every request
+        // awaiting a decision, regardless of the applicant's reporting line —
+        // including the Manager's own bookings (e.g. a VIP reservation).
         $queue = BookingRequest::query()
             ->awaitingManager()
-            ->where(fn ($q) => $q
-                ->where('manager_id', $manager->id)
-                ->orWhereHas('requester', fn ($r) => $r->where('reporting_manager_id', $manager->id)))
-            ->with(['requester', 'occupants'])
+            ->with(['requester', 'occupants', 'hostEmployee'])
             ->orderBy('check_in_date')
             ->paginate(15);
 
         $waiting = BookingRequest::query()
             ->where('status', RequestStatus::MORE_INFO_MANAGER->value)
-            ->where('manager_id', $manager->id)
-            ->with('requester')
+            ->with(['requester', 'occupants'])
             ->orderByDesc('more_info_at')
             ->get();
 
@@ -57,7 +52,51 @@ class ReviewController extends Controller
             'queue' => $queue,
             'waiting' => $waiting,
             'counts' => $this->approvals->queueCounts(),
+            ...$this->decisionHistory($request),
         ]);
+    }
+
+    /**
+     * Requests this Manager has already decided — approved or rejected.
+     *
+     * Both decisions stamp manager_id and manager_acted_at; asking for more
+     * information does not, so a paused request never appears here. The
+     * decision is derived from the status: REJECTED_MANAGER is a rejection,
+     * anything else that carries the stamp was approved (and may since have
+     * moved on to allotment, check-in, cancellation and so on).
+     *
+     * @return array<string, mixed>
+     */
+    private function decisionHistory(Request $request): array
+    {
+        $filter = in_array($request->query('decision'), ['approved', 'rejected'], true)
+            ? $request->query('decision')
+            : 'all';
+
+        $base = BookingRequest::query()
+            ->where('manager_id', $request->user()->id)
+            ->whereNotNull('manager_acted_at');
+
+        $rejected = RequestStatus::REJECTED_MANAGER->value;
+
+        $history = (clone $base)
+            ->when($filter === 'approved', fn ($q) => $q->where('status', '!=', $rejected))
+            ->when($filter === 'rejected', fn ($q) => $q->where('status', $rejected))
+            ->with(['requester', 'occupants', 'hostEmployee'])
+            ->orderByDesc('manager_acted_at')
+            ->paginate(15, pageName: 'history_page')
+            ->withQueryString()
+            ->fragment('history');
+
+        return [
+            'history' => $history,
+            'historyFilter' => $filter,
+            'historyCounts' => [
+                'all' => (clone $base)->count(),
+                'approved' => (clone $base)->where('status', '!=', $rejected)->count(),
+                'rejected' => (clone $base)->where('status', $rejected)->count(),
+            ],
+        ];
     }
 
     public function show(Request $request, BookingRequest $bookingRequest): View
@@ -86,11 +125,14 @@ class ReviewController extends Controller
     {
         $validated = $request->validate([
             'remarks' => ['nullable', 'string', 'max:2000'],
-            'room_ids' => ['nullable', 'array', 'max:20'],
+            'room_ids' => ['required', 'array', 'min:1', 'max:20'],
             'room_ids.*' => ['integer', 'distinct', 'exists:rooms,id'],
+        ], [
+            'room_ids.required' => 'Select at least one room on the room board before approving.',
+            'room_ids.min' => 'Select at least one room on the room board before approving.',
         ]);
 
-        $roomIds = array_map('intval', $validated['room_ids'] ?? []);
+        $roomIds = array_map('intval', $validated['room_ids']);
 
         try {
             $bookingRequest = $this->approvals->managerApprove(
@@ -105,10 +147,8 @@ class ReviewController extends Controller
             return back()->withInput()->withErrors(['action' => $e->getMessage()]);
         }
 
-        $message = $roomIds === []
-            ? "{$bookingRequest->request_no} approved and sent to the Administration for room allotment."
-            : sprintf('%s approved with %d %s allotted.',
-                $bookingRequest->request_no, count($roomIds), Str::plural('room', count($roomIds)));
+        $message = sprintf('%s approved with %d %s allotted.',
+            $bookingRequest->request_no, count($roomIds), Str::plural('room', count($roomIds)));
 
         return redirect()
             ->route('manager.requests.index')

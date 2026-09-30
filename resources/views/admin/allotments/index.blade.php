@@ -38,8 +38,8 @@
                     <thead>
                         <tr>
                             <th scope="col">Request No.</th>
-                            <th scope="col">Applicant</th>
-                            <th scope="col">Purpose</th>
+                            <th scope="col">Guest</th>
+                            <th scope="col">Booking</th>
                             <th scope="col">Stay</th>
                             <th scope="col" class="text-right">Persons</th>
                             <th scope="col" class="text-right">Rooms</th>
@@ -52,10 +52,9 @@
                             <tr>
                                 <td class="font-medium text-[--color-ink]">{{ $r->request_no }}</td>
                                 <td class="text-[--color-ink-soft]">
-                                    {{ $r->requester->name }}
-                                    <span class="block text-xs text-[--color-ink-faint]">{{ $r->requester->department }}</span>
+                                    {{ $r->guestName() }}
                                 </td>
-                                <td class="text-[--color-ink-soft]">{{ $r->purpose->label() }}</td>
+                                <td class="text-[--color-ink-soft]">{{ $r->bookingSummary() }}</td>
                                 <td class="whitespace-nowrap text-[--color-ink-soft]">
                                     {{ $r->check_in_date->format('d/m/Y') }}
                                     <span class="text-[--color-ink-faint]">&rarr;</span>

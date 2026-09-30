@@ -93,20 +93,20 @@ final class RequestStateMachine
             new TransitionRule('T8/T9/T11', A::ALLOT,
                 from: [S::PENDING_ALLOTMENT, S::PARTIALLY_ALLOTTED],
                 to: [S::PARTIALLY_ALLOTTED, S::ALLOTTED],
-                actors: [R::ADMIN],
+                actors: [R::MANAGER, R::ADMIN],
                 note: 'Target resolved by the caller from rooms allotted vs rooms needed.'),
 
             // T10 — approved, but nothing free.
             new TransitionRule('T10', A::MARK_NO_ROOM,
                 from: [S::PENDING_ALLOTMENT],
                 to: [S::NO_ROOM_AVAILABLE],
-                actors: [R::ADMIN]),
+                actors: [R::MANAGER, R::ADMIN]),
 
             // T20 — waitlist retry: look again later.
             new TransitionRule('T20', A::RECHECK_AVAILABILITY,
                 from: [S::NO_ROOM_AVAILABLE],
                 to: [S::PENDING_ALLOTMENT],
-                actors: [R::ADMIN],
+                actors: [R::MANAGER, R::ADMIN],
                 note: 'The single legal exit from the NO_ROOM_AVAILABLE terminal state.'),
 
             // T21 — rooms the Manager held at review become the allotment as
@@ -123,7 +123,7 @@ final class RequestStateMachine
             new TransitionRule('T12', A::CHECK_IN,
                 from: [S::ALLOTTED],
                 to: [S::CHECKED_IN],
-                actors: [R::ADMIN]),
+                actors: [R::MANAGER, R::ADMIN]),
 
             // T13 — cancel an allotted booking before arrival, releasing rooms.
             new TransitionRule('T13', A::CANCEL,
@@ -143,13 +143,13 @@ final class RequestStateMachine
             new TransitionRule('T14', A::CHECK_OUT,
                 from: [S::CHECKED_IN],
                 to: [S::CHECKED_OUT],
-                actors: [R::ADMIN]),
+                actors: [R::MANAGER, R::ADMIN]),
 
             // T15 — left early; rooms free immediately.
             new TransitionRule('T15', A::EARLY_CHECKOUT,
                 from: [S::CHECKED_IN],
                 to: [S::EARLY_CHECKOUT],
-                actors: [R::ADMIN]),
+                actors: [R::MANAGER, R::ADMIN]),
 
             // T16 — guest asks to stay longer.
             new TransitionRule('T16', A::REQUEST_EXTENSION,
@@ -162,14 +162,14 @@ final class RequestStateMachine
             new TransitionRule('T17', A::APPROVE_EXTENSION,
                 from: [S::EXTENSION_REQUESTED],
                 to: [S::CHECKED_IN],
-                actors: [R::ADMIN],
+                actors: [R::MANAGER, R::ADMIN],
                 note: 'Only after re-verifying the extra nights on the same rooms.'),
 
             // T18 — extension denied; original dates stand.
             new TransitionRule('T18', A::DENY_EXTENSION,
                 from: [S::EXTENSION_REQUESTED],
                 to: [S::CHECKED_IN],
-                actors: [R::ADMIN]),
+                actors: [R::MANAGER, R::ADMIN]),
         ];
     }
 

@@ -51,6 +51,12 @@ class NotificationDispatcher
         array $extraTokens = [],
         ?User $onlyTo = null,
     ): int {
+        // Notifications are switched off for this installation (config/gh.php).
+        // Nothing is sent and no bell entries are written.
+        if (! config('gh.notifications_enabled')) {
+            return 0;
+        }
+
         $recipients = $onlyTo !== null
             ? collect([$onlyTo])
             : $this->recipientsFor($event, $request);
@@ -204,7 +210,7 @@ class NotificationDispatcher
         if ($request !== null) {
             $tokens += [
                 'request_no' => $request->request_no,
-                'applicant_name' => $request->requester->name,
+                'applicant_name' => $request->requester?->name ?? $request->guestName(),
                 'purpose' => $request->purpose->label(),
                 'check_in_date' => $request->check_in_date->format('d/m/Y'),
                 'check_out_date' => $request->check_out_date->format('d/m/Y'),

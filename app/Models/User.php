@@ -131,6 +131,16 @@ class User extends Authenticatable
     }
 
     /**
+     * May run the booking operation: availability, allotment, check-in,
+     * check-out and stay extensions. The single Manager does all of it; the
+     * Administrator can too.
+     */
+    public function runsBookingOperations(): bool
+    {
+        return $this->isAdmin() || ($this->isManager() && $this->is_active);
+    }
+
+    /**
      * Permission check against the role's seeded permission set.
      *
      * This is the second of the three authorization layers in SECURITY.md

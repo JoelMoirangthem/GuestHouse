@@ -21,9 +21,9 @@ class BookingRequestPolicy
     /**
      * Who may read a request.
      *
-     * Scope widens with responsibility: an employee sees only their own, a
-     * manager sees their reportees', and the ADG and administrator see all —
-     * because both act on every request in the institute.
+     * Scope widens with responsibility: an employee sees only their own; the
+     * Manager, the ADG and the administrator see all, because each of them acts
+     * on every request in the institute (there is a single Manager).
      */
     public function view(User $user, BookingRequest $request): bool
     {
@@ -36,9 +36,8 @@ class BookingRequestPolicy
         }
 
         if ($user->isManager()) {
-            // Either a reportee's request, or one already routed to this manager.
-            return $request->requester->reporting_manager_id === $user->id
-                || $request->manager_id === $user->id;
+            // A single Manager decides every booking, so they see every request.
+            return true;
         }
 
         // A guest visit is visible to the host employee, who is accountable for it.

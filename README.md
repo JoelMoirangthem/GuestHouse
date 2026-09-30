@@ -9,7 +9,7 @@ The specification is in [`docs/`](docs/README.md). Start with `docs/PLAN.md`.
 
 ## Requirements
 
-- PHP 8.2 with the `gd`, `pdo_mysql`, `mbstring` and `zip` extensions
+- PHP 8.2 with the `gd`, `pdo_mysql`, `mbstring`, `zip` and `bcmath` extensions (`bcmath` is needed to allot rooms)
 - MySQL 8 (the double-booking guard relies on InnoDB row locks and a generated-column unique index)
 - Composer, Node 20+
 

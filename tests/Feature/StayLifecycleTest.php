@@ -140,20 +140,24 @@ class StayLifecycleTest extends TestCase
     }
 
     #[Test]
-    public function only_an_administrator_may_check_a_guest_in(): void
+    public function only_the_manager_or_an_administrator_may_check_a_guest_in(): void
     {
         [$request] = $this->allottedStay();
 
-        foreach ([RoleSlug::USER, RoleSlug::MANAGER, RoleSlug::ADG] as $slug) {
+        foreach ([RoleSlug::USER, RoleSlug::ADG] as $slug) {
             $actor = User::factory()->role($slug)->create();
 
             try {
                 $this->stays()->checkIn($request, $actor);
                 $this->fail("Role {$slug->value} checked a guest in.");
             } catch (\Throwable $e) {
-                $this->assertStringContainsString('Only the Administration', $e->getMessage());
+                $this->assertStringContainsString('Only the Manager or the Administration', $e->getMessage());
             }
         }
+
+        // The Manager runs the front desk.
+        $manager = User::factory()->role(RoleSlug::MANAGER)->create();
+        $this->assertSame(RequestStatus::CHECKED_IN, $this->stays()->checkIn($request, $manager)->status);
     }
 
     #[Test]

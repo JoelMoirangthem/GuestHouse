@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers\Admin;
 
-use App\Application\Services\ReportService;
+use App\Application\Services\DashboardService;
 use App\Http\Controllers\Controller;
 use App\Models\BookingRequest;
 use Illuminate\Http\Request;
@@ -12,12 +12,12 @@ use Illuminate\Support\Carbon;
 use Illuminate\View\View;
 
 /**
- * Admin dashboard — infographic section 4, REPORTS.md sections 1 and 2.
+ * Admin dashboard — infographic section 4.
  */
 class DashboardController extends Controller
 {
     public function __construct(
-        private readonly ReportService $reports,
+        private readonly DashboardService $reports,
     ) {}
 
     public function index(Request $request): View
@@ -37,7 +37,7 @@ class DashboardController extends Controller
             'tiles' => $this->reports->dashboardTiles($from, $to),
             'occupancy' => $this->reports->occupancyByDay($from, $to),
             'byType' => $this->reports->allotmentsByRoomType($from, $to),
-            'queue' => BookingRequest::query()->awaitingAllotment()->with('requester')
+            'queue' => BookingRequest::query()->awaitingAllotment()->with(['requester', 'occupants'])
                 ->orderBy('check_in_date')->limit(5)->get(),
         ]);
     }

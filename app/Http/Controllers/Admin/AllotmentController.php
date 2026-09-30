@@ -41,7 +41,7 @@ class AllotmentController extends Controller
     {
         $queue = BookingRequest::query()
             ->awaitingAllotment()
-            ->with(['requester', 'adg'])
+            ->with(['requester', 'adg', 'occupants', 'hostEmployee'])
             ->orderBy('check_in_date')
             ->paginate(15);
 
@@ -70,7 +70,7 @@ class AllotmentController extends Controller
             $request->integer('room_type_id') ?: null,
         );
 
-        $bookingRequest->load(['requester', 'occupants']);
+        $bookingRequest->load(['requester', 'occupants', 'hostEmployee']);
 
         return view('admin.allotments.create', [
             'request' => $bookingRequest,

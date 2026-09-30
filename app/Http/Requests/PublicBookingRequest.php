@@ -34,13 +34,14 @@ class PublicBookingRequest extends FormRequest
      */
     public function rules(): array
     {
-        // DEMO MODE: the public requisition form intentionally applies no
-        // blocking validation. Every field is optional; the controller fills in
-        // sensible defaults for anything missing so a submission always succeeds
-        // and goes straight to the Manager's review queue.
+        // DEMO MODE: the public requisition form intentionally applies little
+        // blocking validation; the controller fills in sensible defaults for
+        // most missing fields. Two rules are NOT optional:
+        //   - a valid 10-digit contact mobile, and
+        //   - agreement to the Terms & Conditions (the dialog's checkbox).
         return [
             'employee_code' => ['nullable', 'string', 'max:30'],
-            'contact_mobile' => ['nullable', 'string', 'max:20'],
+            'contact_mobile' => ['required', 'string', 'regex:/^[6-9]\d{9}$/'],
             'purpose' => ['nullable', 'string'],
             'training_programme' => ['nullable', 'string', 'max:150'],
             'guest_name' => ['nullable', 'string', 'max:120'],
@@ -52,7 +53,7 @@ class PublicBookingRequest extends FormRequest
             'check_in_time' => ['nullable', 'string'],
             'check_out_date' => ['nullable', 'string'],
             'check_out_time' => ['nullable', 'string'],
-            'terms_accepted' => ['nullable'],
+            'terms_accepted' => ['accepted'],
         ];
     }
 
@@ -77,6 +78,10 @@ class PublicBookingRequest extends FormRequest
      */
     public function messages(): array
     {
-        return [];
+        return [
+            'contact_mobile.required' => 'Enter your contact number.',
+            'contact_mobile.regex' => 'Enter a valid 10-digit mobile number.',
+            'terms_accepted.accepted' => 'You must agree to the Terms & Conditions before submitting.',
+        ];
     }
 }

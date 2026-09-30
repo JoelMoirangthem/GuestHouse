@@ -36,6 +36,9 @@
         <!-- DB_USERNAME / DB_PASSWORD come from the git-ignored .env; never commit credentials here. -->
         <env name="DB_URL" value=""/>
         <env name="MAIL_MAILER" value="array"/>
+        <!-- Off in real use (config/gh.php); on in tests so the notification code
+             stays covered. NotificationsDisabledTest checks the off state. -->
+        <env name="GH_NOTIFICATIONS_ENABLED" value="true"/>
         <env name="QUEUE_CONNECTION" value="sync"/>
         <env name="SESSION_DRIVER" value="array"/>
         <env name="PULSE_ENABLED" value="false"/>

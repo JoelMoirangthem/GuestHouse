@@ -81,14 +81,37 @@ class PublicBookingTest extends TestCase
     }
 
     #[Test]
-    public function a_submission_without_accepting_the_terms_still_succeeds(): void
+    public function a_submission_without_accepting_the_terms_is_rejected(): void
     {
-        // DEMO MODE: terms are no longer a blocking requirement.
         $this->post(route('public.booking.store'), $this->payload(['terms_accepted' => null]))
-            ->assertRedirect(route('public.booking.submitted'));
+            ->assertSessionHasErrors([
+                'terms_accepted' => 'You must agree to the Terms & Conditions before submitting.',
+            ]);
 
-        $this->assertSame(1, BookingRequest::count());
-        $this->assertSame(RequestStatus::PENDING_MANAGER, BookingRequest::sole()->status);
+        $this->post(route('public.booking.store'), array_diff_key($this->payload(), ['terms_accepted' => true]))
+            ->assertSessionHasErrors('terms_accepted');
+
+        $this->assertSame(0, BookingRequest::count());
+    }
+
+    #[Test]
+    public function the_contact_number_is_mandatory_and_must_be_a_valid_mobile(): void
+    {
+        $this->post(route('public.booking.store'), $this->payload(['contact_mobile' => null]))
+            ->assertSessionHasErrors(['contact_mobile' => 'Enter your contact number.']);
+
+        foreach (['12345', '5876500001', '98765000012', 'abcdefghij'] as $bad) {
+            $this->post(route('public.booking.store'), $this->payload(['contact_mobile' => $bad]))
+                ->assertSessionHasErrors(['contact_mobile' => 'Enter a valid 10-digit mobile number.']);
+        }
+
+        $this->assertSame(0, BookingRequest::count());
+
+        // The form marks the field required, so the browser checks it before
+        // the Terms & Conditions dialog opens.
+        $this->get(route('public.booking'))
+            ->assertSee('name="contact_mobile"', false)
+            ->assertSee('pattern="[6-9][0-9]{9}"', false);
     }
 
     #[Test]
@@ -156,6 +179,39 @@ class PublicBookingTest extends TestCase
     }
 
     #[Test]
+    public function a_landing_page_guest_visit_is_shown_without_a_host(): void
+    {
+        // The host is filled in automatically with the applicant, so showing it
+        // would only repeat their name. Only the Manager's own bookings show one.
+        $this->post(route('public.booking.store'), $this->payload([
+            'purpose' => 'GUEST',
+            'guest_name' => 'Meera Nair',
+        ]))->assertRedirect(route('public.booking.submitted'));
+
+        $request = BookingRequest::sole();
+        $this->assertSame('Guest Visit', $request->bookingSummary());
+
+        $this->actingAs($this->manager)
+            ->get(route('manager.requests.show', $request))
+            ->assertOk()
+            ->assertSee('Meera Nair')
+            ->assertDontSee('Booked by')
+            ->assertDontSee('· host:', false)
+            ->assertDontSee('Host employee');
+    }
+
+    #[Test]
+    public function a_guest_visit_booked_by_the_manager_shows_the_host(): void
+    {
+        $request = BookingRequest::factory()->for_($this->manager)->create([
+            'purpose' => 'GUEST',
+            'host_employee_id' => $this->employee->id,
+        ]);
+
+        $this->assertStringEndsWith('host: '.$this->employee->name, $request->bookingSummary());
+    }
+
+    #[Test]
     public function purpose_specific_fields_are_defaulted_and_never_block_submission(): void
     {
         // DEMO MODE: a training visit with no programme name still submits; the
@@ -168,11 +224,13 @@ class PublicBookingTest extends TestCase
     }
 
     #[Test]
-    public function an_empty_submission_defaults_everything_and_still_reaches_review(): void
+    public function an_otherwise_empty_submission_defaults_the_rest_and_still_reaches_review(): void
     {
-        // The extreme demo case: nothing filled in at all. It must still create
-        // a request and land in the Manager's queue.
+        // Only the two mandatory items are given: contact number and the
+        // Terms & Conditions tick. Everything else is defaulted.
         $this->post(route('public.booking.store'), [
+            'contact_mobile' => '9876500001',
+            'terms_accepted' => '1',
             'purpose' => null,
             'rooms' => null,
             'check_in_date' => null,
@@ -212,21 +270,17 @@ class PublicBookingTest extends TestCase
     }
 
     #[Test]
-    public function a_requisition_with_no_identity_at_all_still_files_under_a_default_account(): void
+    public function a_requisition_without_a_contact_number_is_refused(): void
     {
-        // Demo / walk-in path: neither Employee ID nor mobile given. It must
-        // still complete end to end so a request always reaches the queue.
+        // Neither Employee ID nor mobile: the contact number is now mandatory,
+        // so nothing is filed (previously this fell back to a default account).
         $this->post(route('public.booking.store'), $this->payload([
             'employee_code' => null,
             'contact_mobile' => null,
             'id_card' => null,
-        ]))->assertRedirect(route('public.booking.submitted'));
+        ]))->assertSessionHasErrors('contact_mobile');
 
-        $request = BookingRequest::sole();
-        $this->assertNotNull($request->user_id);
-        $this->assertSame(RequestStatus::PENDING_MANAGER, $request->status);
-        // Filed under the only active employee who may raise requests.
-        $this->assertSame($this->employee->id, $request->user_id);
+        $this->assertSame(0, BookingRequest::count());
     }
 
     #[Test]

@@ -39,7 +39,7 @@
                             <div class="min-w-0">
                                 <p class="font-medium text-[--color-ink]">
                                     {{ $ext->bookingRequest->request_no }}
-                                    <span class="font-normal text-[--color-ink-muted]">&middot; {{ $ext->bookingRequest->requester->name }}</span>
+                                    <span class="font-normal text-[--color-ink-muted]">&middot; {{ $ext->bookingRequest->guestName() }}</span>
                                 </p>
                                 <p class="mt-1 text-sm text-[--color-ink-soft]">
                                     Room {{ $ext->allotment->room->room_number }} &middot;
@@ -99,7 +99,7 @@
                     <div class="min-w-0">
                         <p class="text-sm font-medium text-[--color-ink]">{{ $r->request_no }}</p>
                         <p class="text-xs text-[--color-ink-muted]">
-                            {{ $r->requester->name }} &middot; {{ $r->total_members }} {{ Str::plural('person', $r->total_members) }}
+                            {{ $r->guestName() }} &middot; {{ $r->total_members }} {{ Str::plural('person', $r->total_members) }}
                             &middot; due {{ $r->check_in_date->format('d/m/Y') }}
                         </p>
                     </div>
@@ -124,7 +124,7 @@
                     <div class="min-w-0">
                         <p class="text-sm font-medium text-[--color-ink]">{{ $r->request_no }}</p>
                         <p class="text-xs text-[--color-ink-muted]">
-                            {{ $r->requester->name }} &middot; due {{ $r->check_out_date->format('d/m/Y') }}
+                            {{ $r->guestName() }} &middot; due {{ $r->check_out_date->format('d/m/Y') }}
                         </p>
                     </div>
                     <form method="POST" action="{{ route('admin.stays.checkOut', $r) }}">
@@ -161,7 +161,7 @@
                             @foreach ($inResidence as $r)
                                 <tr>
                                     <td class="font-medium text-[--color-ink]">{{ $r->request_no }}</td>
-                                    <td class="text-[--color-ink-soft]">{{ $r->requester->name }}</td>
+                                    <td class="text-[--color-ink-soft]">{{ $r->guestName() }}</td>
                                     <td class="text-[--color-ink-soft]">
                                         {{ $r->check_out_date->format('d/m/Y') }}
                                         @if ($r->check_out_date->isToday())
@@ -205,7 +205,7 @@
                             @foreach ($upcoming as $r)
                                 <tr>
                                     <td class="font-medium text-[--color-ink]">{{ $r->request_no }}</td>
-                                    <td class="text-[--color-ink-soft]">{{ $r->requester->name }}</td>
+                                    <td class="text-[--color-ink-soft]">{{ $r->guestName() }}</td>
                                     <td class="text-[--color-ink-soft]">
                                         {{ $r->check_in_date->format('d/m/Y') }}
                                         <span class="block text-xs text-[--color-ink-faint]">

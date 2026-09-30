@@ -33,12 +33,14 @@
                         <dd class="mt-0.5 font-medium text-[--color-ink]">{{ $request->request_no }}</dd>
                     </div>
                     <div>
-                        <dt class="text-xs text-[--color-ink-muted]">Name</dt>
-                        <dd class="mt-0.5 font-medium text-[--color-ink]">{{ $request->requester->name }}</dd>
+                        <dt class="text-xs text-[--color-ink-muted]">Guest</dt>
+                        <dd class="mt-0.5 font-medium text-[--color-ink]">
+                            {{ $request->guestName() }}
+                        </dd>
                     </div>
                     <div>
-                        <dt class="text-xs text-[--color-ink-muted]">Purpose</dt>
-                        <dd class="mt-0.5 font-medium text-[--color-ink]">{{ $request->purpose->label() }}</dd>
+                        <dt class="text-xs text-[--color-ink-muted]">Booking</dt>
+                        <dd class="mt-0.5 font-medium text-[--color-ink]">{{ $request->bookingSummary() }}</dd>
                     </div>
                     <div>
                         <dt class="text-xs text-[--color-ink-muted]">Persons</dt>

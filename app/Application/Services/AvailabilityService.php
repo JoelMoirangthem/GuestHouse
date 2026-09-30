@@ -126,7 +126,7 @@ class AvailabilityService
      * The room board a Manager sees while reviewing a request — PLAN.md
      * decision 10, the one deliberate exception to Core Rule 1.
      *
-     * Deliberately narrow: only the assigned Manager, only while the request is
+     * Deliberately narrow: only the Manager, only while the request is
      * PENDING_MANAGER, and only for that request's own dates. There is no date
      * argument, so this cannot become a general availability search.
      *
@@ -229,12 +229,8 @@ class AvailabilityService
             throw new AuthorizationException('Only the reviewing Manager may see the room board.');
         }
 
-        $request->loadMissing('requester');
-
-        if ($request->manager_id !== $actor->id && $request->requester->reporting_manager_id !== $actor->id) {
-            throw new AuthorizationException('This request is not assigned to you.');
-        }
-
+        // No per-request assignment check: the single Manager reviews every
+        // request, including their own bookings.
         if ($request->status !== \App\Domain\Enums\RequestStatus::PENDING_MANAGER) {
             throw new RuntimeException('Rooms can be chosen only while the request awaits your review.');
         }
@@ -245,9 +241,9 @@ class AvailabilityService
      */
     private function assertAdmin(User $actor): void
     {
-        if (! $actor->isAdmin() || ! $actor->hasPermission('availability.check')) {
+        if (! $actor->runsBookingOperations() || ! $actor->hasPermission('availability.check')) {
             throw new AuthorizationException(
-                'Room availability may be checked by the Administration only.'
+                'Room availability may be checked by the Manager or the Administration only.'
             );
         }
     }

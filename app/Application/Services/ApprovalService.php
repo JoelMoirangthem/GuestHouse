@@ -67,8 +67,17 @@ class ApprovalService
         User $manager,
         ?string $remarks = null,
         array $roomIds = [],
+        bool $requireRooms = true,
     ): BookingRequest {
         $this->assertIsTheAssignedManager($request, $manager);
+
+        // Approving means allotting: the Manager must pick at least one room on
+        // the room board. The only exception is the Manager's own reservation
+        // (BookingRequestService::submit), which is approved at submission and
+        // then allotted by the Administration.
+        if ($requireRooms && $roomIds === []) {
+            throw new \RuntimeException('Select at least one room on the room board before approving.');
+        }
 
         return DB::transaction(function () use ($request, $manager, $remarks, $roomIds) {
             if ($roomIds !== []) {
@@ -306,12 +315,13 @@ class ApprovalService
     }
 
     /**
-     * A manager may only act on requests routed to them.
+     * The guest house has a single Manager who decides every booking, whatever
+     * the applicant's reporting line — including bookings the Manager raises
+     * themselves (for example a room reserved for a visiting VIP). So any active
+     * Manager may act; the reporting line is not consulted. An administrator may
+     * also act to unblock a request, audited like any other action.
      *
-     * Without this, any manager in the institute could approve any employee's
-     * request, which defeats the purpose of having a reporting line. An
-     * administrator is exempt so they can unblock a request when a manager is
-     * unavailable — and that action is audited like any other.
+     * Which transitions are legal is still decided by the state machine.
      *
      * @throws InvalidTransitionException
      */
@@ -321,13 +331,8 @@ class ApprovalService
             return;
         }
 
-        $isAssigned = $request->manager_id === $manager->id;
-        $isReportee = $request->requester->reporting_manager_id === $manager->id;
-
-        if (! $isAssigned && ! $isReportee) {
-            throw new InvalidTransitionException(
-                'This request is not assigned to you. Only the applicant\'s reporting manager may act on it.'
-            );
+        if (! $manager->isManager() || ! $manager->is_active) {
+            throw new InvalidTransitionException('Only the Manager may act on booking requests.');
         }
     }
 

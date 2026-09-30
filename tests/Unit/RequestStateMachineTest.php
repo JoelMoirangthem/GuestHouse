@@ -180,16 +180,17 @@ class RequestStateMachineTest extends TestCase
     }
 
     #[Test]
-    public function no_room_available_is_terminal_except_for_the_admin_recheck(): void
+    public function no_room_available_is_terminal_except_for_the_recheck(): void
     {
-        // The one deliberate exception: an admin may look again later (T20).
+        // The one deliberate exception: the Manager or an admin may look again later (T20).
         $this->assertTrue(S::NO_ROOM_AVAILABLE->isTerminal());
 
-        $actions = M::availableActions(S::NO_ROOM_AVAILABLE, R::ADMIN);
-        $this->assertSame([A::RECHECK_AVAILABILITY], $actions);
+        foreach ([R::MANAGER, R::ADMIN] as $role) {
+            $this->assertSame([A::RECHECK_AVAILABILITY], M::availableActions(S::NO_ROOM_AVAILABLE, $role));
+        }
 
         // and nobody else may do even that
-        foreach ([R::USER, R::MANAGER, R::ADG] as $role) {
+        foreach ([R::USER, R::ADG] as $role) {
             $this->assertFalse(M::can(S::NO_ROOM_AVAILABLE, A::RECHECK_AVAILABILITY, $role, null, true));
         }
     }
@@ -218,14 +219,24 @@ class RequestStateMachineTest extends TestCase
     }
 
     #[Test]
-    public function only_an_administrator_may_allot_rooms_or_manage_a_stay(): void
+    public function only_the_manager_or_an_administrator_may_allot_rooms_or_manage_a_stay(): void
     {
-        foreach ([R::USER, R::MANAGER, R::ADG] as $role) {
+        foreach ([R::USER, R::ADG] as $role) {
             $this->assertFalse(M::can(S::PENDING_ALLOTMENT, A::ALLOT, $role, S::ALLOTTED));
             $this->assertFalse(M::can(S::PENDING_ALLOTMENT, A::MARK_NO_ROOM, $role));
             $this->assertFalse(M::can(S::ALLOTTED, A::CHECK_IN, $role));
             $this->assertFalse(M::can(S::CHECKED_IN, A::CHECK_OUT, $role));
             $this->assertFalse(M::can(S::EXTENSION_REQUESTED, A::APPROVE_EXTENSION, $role));
+        }
+
+        foreach ([R::MANAGER, R::ADMIN] as $role) {
+            $this->assertTrue(M::can(S::PENDING_ALLOTMENT, A::ALLOT, $role, S::ALLOTTED));
+            $this->assertTrue(M::can(S::PENDING_ALLOTMENT, A::MARK_NO_ROOM, $role));
+            $this->assertTrue(M::can(S::ALLOTTED, A::CHECK_IN, $role));
+            $this->assertTrue(M::can(S::CHECKED_IN, A::CHECK_OUT, $role));
+            $this->assertTrue(M::can(S::CHECKED_IN, A::EARLY_CHECKOUT, $role));
+            $this->assertTrue(M::can(S::EXTENSION_REQUESTED, A::APPROVE_EXTENSION, $role));
+            $this->assertTrue(M::can(S::EXTENSION_REQUESTED, A::DENY_EXTENSION, $role));
         }
     }
 

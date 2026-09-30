@@ -33,7 +33,7 @@
                          :class="selected.length ? 'border-navy-200 bg-navy-50' : 'border-[--color-line] bg-[--color-surface-sunken]'">
                         <p class="font-medium text-[--color-ink]" x-show="!selected.length">No rooms selected</p>
                         <p class="text-xs text-[--color-ink-muted]" x-show="!selected.length">
-                            The Administration will allot rooms after you approve.
+                            Select at least one room on the room board to approve.
                         </p>
 
                         <div x-show="selected.length" x-cloak>
@@ -59,11 +59,14 @@
                 </div>
             </template>
 
-            <button type="submit" class="gh-btn gh-btn-approve mb-2 w-full">
+            {{-- Room selection is mandatory: the button stays disabled until at
+                 least one room is picked (the server enforces the same rule). --}}
+            <button type="submit" class="gh-btn gh-btn-approve mb-2 w-full disabled:cursor-not-allowed disabled:opacity-50"
+                    :disabled="typeof selected === 'undefined' || selected.length === 0">
                 <svg class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
                     <path fill-rule="evenodd" d="M16.7 5.3a1 1 0 010 1.4l-8 8a1 1 0 01-1.4 0l-4-4a1 1 0 011.4-1.4L8 12.6l7.3-7.3a1 1 0 011.4 0z" clip-rule="evenodd"/>
                 </svg>
-                <span x-text="typeof selected !== 'undefined' && selected.length ? 'Approve & hold rooms' : 'Approve'">Approve</span>
+                <span>Approve &amp; allot rooms</span>
             </button>
         </form>
 

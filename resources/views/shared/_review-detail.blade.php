@@ -23,16 +23,8 @@
 
             <dl class="grid gap-x-6 gap-y-4 sm:grid-cols-2">
                 <div>
-                    <dt class="text-xs text-[--color-ink-muted]">Applicant</dt>
-                    <dd class="mt-0.5 text-sm font-medium text-[--color-ink]">
-                        {{ $request->requester->name }}
-                        <span class="block font-normal text-[--color-ink-muted]">
-                            {{ $request->requester->designation ?? '—' }}
-                            @if ($request->requester->employee_code)
-                                &middot; {{ $request->requester->employee_code }}
-                            @endif
-                        </span>
-                    </dd>
+                    <dt class="text-xs text-[--color-ink-muted]">Guest</dt>
+                    <dd class="mt-0.5 text-sm font-medium text-[--color-ink]">{{ $request->guestName() }}</dd>
                 </div>
 
                 <div>
@@ -47,7 +39,9 @@
                     </div>
                 @endif
 
-                @if ($request->hostEmployee || $request->guest_of_name)
+                {{-- Host shown only for bookings the Manager made while signed in;
+                     see BookingRequest::bookingSummary(). --}}
+                @if (($request->hostEmployee || $request->guest_of_name) && $request->requester?->isManager())
                     <div>
                         <dt class="text-xs text-[--color-ink-muted]">Host employee</dt>
                         <dd class="mt-0.5 text-sm font-medium text-[--color-ink]">
@@ -216,9 +210,11 @@
     {{-- ---------- sidebar ---------- --}}
     <div class="space-y-6">
 
-        @error('action')
-            <div class="gh-alert gh-alert-danger" role="alert"><span>{{ $message }}</span></div>
-        @enderror
+        @foreach (['action', 'room_ids', 'room_ids.*'] as $errKey)
+            @error($errKey)
+                <div class="gh-alert gh-alert-danger" role="alert"><span>{{ $message }}</span></div>
+            @enderror
+        @endforeach
 
         {{-- Each screen supplies its own action panel: the Manager has three
              buttons, the ADG has two. This is the only structural difference
@@ -262,7 +258,7 @@
                 <div class="flex justify-between gap-3">
                     <dt class="text-[--color-ink-muted]">Manager</dt>
                     <dd class="text-right font-medium text-[--color-ink]">
-                        {{ $request->manager->name ?? $request->requester->reportingManager->name ?? 'Unassigned' }}
+                        {{ $request->manager?->name ?? $request->requester?->reportingManager?->name ?? 'Unassigned' }}
                     </dd>
                 </div>
                 @if ($request->manager_acted_at)

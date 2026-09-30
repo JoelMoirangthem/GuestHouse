@@ -44,7 +44,7 @@ class AvailabilityController extends Controller
             abort(409, $e->getMessage());
         }
 
-        $bookingRequest->load(['requester', 'occupants']);
+        $bookingRequest->load(['requester', 'occupants', 'hostEmployee']);
 
         return view('admin.availability.show', [
             'request' => $bookingRequest,

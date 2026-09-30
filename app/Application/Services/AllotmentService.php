@@ -345,7 +345,7 @@ class AllotmentService
         $allotment->allotment_no = Allotment::nextAllotmentNo();
         $allotment->status = AllotmentStatus::ALLOTTED;
         $allotment->rate_per_night = $rate;
-        $allotment->total_amount = bcmul($rate, (string) max(1, $nights), 2);
+        $allotment->total_amount = \App\Domain\Money::times($rate, max(1, $nights));
         $allotment->allotted_by = $admin->id;
         $allotment->allotted_at = now();
         $allotment->qr_token = Allotment::freshQrToken();
@@ -440,8 +440,8 @@ class AllotmentService
 
     private function assertAdmin(User $actor): void
     {
-        if (! $actor->isAdmin()) {
-            throw new RuntimeException('Only the Administration may allot rooms.');
+        if (! $actor->runsBookingOperations()) {
+            throw new RuntimeException('Only the Manager or the Administration may allot rooms.');
         }
     }
 

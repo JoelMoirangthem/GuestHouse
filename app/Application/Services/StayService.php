@@ -129,7 +129,7 @@ class StayService
                 // stayed, anchored on the real arrival time (REPORTS.md section 3).
                 if ($isEarly) {
                     $nights = $allotment->nightsStayed();
-                    $allotment->total_amount = bcmul((string) $allotment->rate_per_night, (string) $nights, 2);
+                    $allotment->total_amount = \App\Domain\Money::times($allotment->rate_per_night, (int) $nights);
                 }
 
                 $allotment->save();
@@ -248,7 +248,7 @@ class StayService
             foreach ($allotments as $allotment) {
                 $allotment->check_out_date = $to;
                 $nights = $allotment->nights();
-                $allotment->total_amount = bcmul((string) $allotment->rate_per_night, (string) max(1, $nights), 2);
+                $allotment->total_amount = \App\Domain\Money::times($allotment->rate_per_night, max(1, (int) $nights));
                 $allotment->save();
             }
 
@@ -409,8 +409,8 @@ class StayService
 
     private function assertAdmin(User $actor): void
     {
-        if (! $actor->isAdmin()) {
-            throw new RuntimeException('Only the Administration may manage check-in and check-out.');
+        if (! $actor->runsBookingOperations()) {
+            throw new RuntimeException('Only the Manager or the Administration may manage check-in and check-out.');
         }
     }
 

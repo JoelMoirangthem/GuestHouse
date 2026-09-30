@@ -69,9 +69,13 @@ class BookingRequestController extends Controller
             return back()->withInput()->withErrors(['submit' => $e->getMessage()]);
         }
 
+        $message = $booking->status === RequestStatus::PENDING_MANAGER
+            ? "Request {$booking->request_no} has been submitted for approval."
+            : "Reservation {$booking->request_no} is approved and sent to the Administration for room allotment.";
+
         return redirect()
             ->route('my.requests.show', $booking)
-            ->with('success', "Request {$booking->request_no} has been submitted for approval.");
+            ->with('success', $message);
     }
 
     public function show(Request $request, BookingRequest $bookingRequest): View

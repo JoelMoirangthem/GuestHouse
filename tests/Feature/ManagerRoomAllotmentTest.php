@@ -121,13 +121,12 @@ class ManagerRoomAllotmentTest extends TestCase
     }
 
     #[Test]
-    public function the_board_is_withheld_from_everyone_but_the_reviewing_manager(): void
+    public function the_board_is_withheld_from_everyone_but_the_manager(): void
     {
         $request = $this->pendingRequest();
-        $otherManager = User::factory()->role(RoleSlug::MANAGER)->create();
         $service = app(AvailabilityService::class);
 
-        foreach ([$this->employee, $this->adg, $otherManager] as $actor) {
+        foreach ([$this->employee, $this->adg] as $actor) {
             try {
                 $service->roomBoardForReview($request, $actor);
                 $this->fail("{$actor->role->slug} obtained the room board.");
@@ -136,8 +135,13 @@ class ManagerRoomAllotmentTest extends TestCase
             }
         }
 
+        // The Manager decides every booking, whatever the reporting line.
+        $otherManager = User::factory()->role(RoleSlug::MANAGER)->create();
+        $this->assertArrayHasKey('blocks', $service->roomBoardForReview($request, $otherManager));
+
         // Once approved it is no longer the Manager's to allot.
-        $this->actingAs($this->manager)->post(route('manager.requests.approve', $request));
+        $this->actingAs($this->manager)->post(route('manager.requests.approve', $request), ['room_ids' => [$this->free1->id]])
+            ->assertSessionHasNoErrors();
         $this->actingAs($this->manager)->get(route('manager.requests.show', $request))
             ->assertOk()->assertDontSee('Room allotment');
     }
@@ -249,14 +253,34 @@ class ManagerRoomAllotmentTest extends TestCase
     }
 
     #[Test]
-    public function approving_without_rooms_still_works_and_leaves_allotment_to_the_administration(): void
+    public function approving_without_rooms_is_refused_and_nothing_is_written(): void
+    {
+        // Room selection is mandatory for the Manager's approval.
+        $request = $this->pendingRequest();
+
+        $this->actingAs($this->manager)->post(route('manager.requests.approve', $request))
+            ->assertSessionHasErrors('room_ids');
+        $this->actingAs($this->manager)->post(route('manager.requests.approve', $request), ['room_ids' => []])
+            ->assertSessionHasErrors('room_ids');
+
+        $this->assertSame(RequestStatus::PENDING_MANAGER, $request->fresh()->status);
+        $this->assertNull($request->fresh()->manager_acted_at);
+        $this->assertSame([], $this->heldRoomIds($request));
+
+        // The service refuses too, so no other code path can bypass the rule.
+        $this->expectException(\RuntimeException::class);
+        app(\App\Application\Services\ApprovalService::class)->managerApprove($request, $this->manager);
+    }
+
+    #[Test]
+    public function the_approve_button_is_disabled_until_a_room_is_selected(): void
     {
         $request = $this->pendingRequest();
 
-        $this->actingAs($this->manager)->post(route('manager.requests.approve', $request));
-
-        $this->assertSame(RequestStatus::PENDING_ALLOTMENT, $request->fresh()->status);
-        $this->assertSame([], $this->heldRoomIds($request));
+        $this->actingAs($this->manager)->get(route('manager.requests.show', $request))
+            ->assertOk()
+            ->assertSee(':disabled="typeof selected === \'undefined\' || selected.length === 0"', false)
+            ->assertSee('Select at least one room on the room board to approve.');
     }
 
     #[Test]

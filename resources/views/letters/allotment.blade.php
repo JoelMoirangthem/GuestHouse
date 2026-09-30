@@ -35,8 +35,8 @@
             <td style="width: 64%; vertical-align: top;">
                 <table class="meta">
                     <tr><td class="k">Request No.</td><td><strong>{{ $request->request_no }}</strong></td></tr>
-                    <tr><td class="k">Applicant</td><td>{{ $request->requester->name }}@if ($request->requester->employee_code) ({{ $request->requester->employee_code }})@endif</td></tr>
-                    @if ($request->requester->designation)
+                    <tr><td class="k">Applicant</td><td>{{ $request->requester?->name ?? $request->guestName() }}@if ($request->requester?->employee_code) ({{ $request->requester->employee_code }})@endif</td></tr>
+                    @if ($request->requester?->designation)
                         <tr><td class="k">Designation</td><td>{{ $request->requester->designation }}</td></tr>
                     @endif
                     <tr><td class="k">Purpose</td><td>{{ $request->purpose->label() }}@if ($request->training_programme) — {{ $request->training_programme }}@endif</td></tr>

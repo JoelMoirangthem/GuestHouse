@@ -62,6 +62,21 @@
                                     Dashboard
                                 </a>
                             </li>
+                        @endif
+
+                        @if ($role === 'manager')
+                            <li>
+                                <a href="{{ route('manager.requests.index') }}"
+                                   class="gh-nav-item @if (request()->routeIs('manager.*')) gh-nav-item-active @endif"
+                                   @if (request()->routeIs('manager.*')) aria-current="page" @endif>
+                                    <x-icon name="inbox" />
+                                    Pending Review
+                                </a>
+                            </li>
+                        @endif
+
+                        {{-- Booking operations: the Manager runs these; the Admin can too. --}}
+                        @if (in_array($role, ['manager', 'admin'], true))
                             <li>
                                 <a href="{{ route('admin.allotments.index') }}"
                                    class="gh-nav-item @if (request()->routeIs('admin.allotments.*') || request()->routeIs('admin.availability.*')) gh-nav-item-active @endif"
@@ -138,17 +153,6 @@
                             @endforeach
                         @endif
 
-                        @if ($role === 'manager')
-                            <li>
-                                <a href="{{ route('manager.requests.index') }}"
-                                   class="gh-nav-item @if (request()->routeIs('manager.*')) gh-nav-item-active @endif"
-                                   @if (request()->routeIs('manager.*')) aria-current="page" @endif>
-                                    <x-icon name="inbox" />
-                                    Pending Review
-                                </a>
-                            </li>
-                        @endif
-
                         @if ($role === 'adg')
                             <li>
                                 <a href="{{ route('adg.requests.index') }}"
@@ -167,17 +171,6 @@
                                    @if (request()->routeIs('adg.inventory')) aria-current="page" @endif>
                                     <x-icon name="building" />
                                     Room Inventory
-                                </a>
-                            </li>
-                        @endif
-
-                        @if (in_array($role, ['manager', 'adg', 'admin'], true))
-                            <li>
-                                <a href="{{ route('reports.index') }}"
-                                   class="gh-nav-item @if (request()->routeIs('reports.*')) gh-nav-item-active @endif"
-                                   @if (request()->routeIs('reports.*')) aria-current="page" @endif>
-                                    <x-icon name="grid" />
-                                    Reports
                                 </a>
                             </li>
                         @endif
@@ -236,8 +229,11 @@
                     <h1 class="truncate text-[0.9375rem] font-semibold text-[--color-ink]">@yield('heading', 'Home')</h1>
                 </div>
 
-                {{-- Live notification bell. Updates without a page refresh. --}}
-                <x-notification-bell />
+                {{-- Live notification bell. Updates without a page refresh.
+                     Hidden while notifications are switched off. --}}
+                @if (config('gh.notifications_enabled'))
+                    <x-notification-bell />
+                @endif
 
                 <span class="hidden shrink-0 rounded-full border border-[--color-line] bg-white px-2.5 py-1 text-[0.6875rem] font-medium text-[--color-ink-muted] sm:inline-flex">
                     {{ auth()->user()->roleSlug()?->label() }}

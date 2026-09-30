@@ -42,7 +42,7 @@
             </div>
             <h2 class="font-serif text-lg text-navy-900">Nothing awaiting review</h2>
             <p class="mx-auto mt-1.5 max-w-sm text-sm text-[--color-ink-muted]">
-                Requests from your reportees will appear here when submitted.
+                Booking requests will appear here when submitted.
             </p>
         </div>
     @else
@@ -55,8 +55,8 @@
                     <thead>
                         <tr>
                             <th scope="col">Request No.</th>
-                            <th scope="col">Applicant</th>
-                            <th scope="col">Purpose</th>
+                            <th scope="col">Guest</th>
+                            <th scope="col">Booking</th>
                             <th scope="col">Stay</th>
                             <th scope="col" class="text-right">Persons</th>
                             <th scope="col"><span class="sr-only">Actions</span></th>
@@ -67,15 +67,9 @@
                             <tr>
                                 <td class="font-medium text-[--color-ink]">{{ $r->request_no }}</td>
                                 <td class="text-[--color-ink-soft]">
-                                    @php
-                                        $bookingName = optional($r->occupants->firstWhere('is_primary', true))->name
-                                            ?? optional($r->occupants->first())->name
-                                            ?? $r->requester->name;
-                                    @endphp
-                                    {{ $bookingName }}
-                                    <span class="block text-xs text-[--color-ink-faint]">{{ $r->requester->designation }}</span>
+                                    {{ $r->guestName() }}
                                 </td>
-                                <td class="text-[--color-ink-soft]">{{ $r->purpose->label() }}</td>
+                                <td class="text-[--color-ink-soft]">{{ $r->bookingSummary() }}</td>
                                 <td class="whitespace-nowrap text-[--color-ink-soft]">
                                     {{ $r->check_in_date->format('d/m/Y') }}
                                     <span class="text-[--color-ink-faint]">&rarr;</span>
@@ -111,7 +105,7 @@
                     <thead>
                         <tr>
                             <th scope="col">Request No.</th>
-                            <th scope="col">Applicant</th>
+                            <th scope="col">Guest</th>
                             <th scope="col">Information requested</th>
                             <th scope="col"><span class="sr-only">Actions</span></th>
                         </tr>
@@ -120,7 +114,9 @@
                         @foreach ($waiting as $r)
                             <tr>
                                 <td class="font-medium text-[--color-ink]">{{ $r->request_no }}</td>
-                                <td class="text-[--color-ink-soft]">{{ $r->requester->name }}</td>
+                                <td class="text-[--color-ink-soft]">
+                                    {{ $r->guestName() }}
+                                </td>
                                 <td class="text-[--color-ink-soft]">
                                     {{ $r->more_info_at?->format('d/m/Y') }}
                                     <span class="block max-w-xs truncate text-xs text-[--color-ink-faint]">{{ $r->more_info_note }}</span>
@@ -136,4 +132,90 @@
             </div>
         </div>
     @endif
+
+    {{-- Decision history: everything this Manager has approved or rejected.
+         A request leaves the queue above the moment it is decided and lands
+         here, with the decision and where the request stands now. --}}
+    <section id="history" class="gh-card mt-6 overflow-hidden" aria-labelledby="history-title">
+        <div class="flex flex-wrap items-center justify-between gap-3 border-b border-[--color-line] px-5 py-3.5">
+            <h2 id="history-title" class="gh-eyebrow">My decisions</h2>
+
+            <nav class="flex gap-1.5" aria-label="Filter decisions">
+                @foreach (['all' => 'All', 'approved' => 'Approved', 'rejected' => 'Rejected'] as $key => $label)
+                    <a href="{{ route('manager.requests.index', $key === 'all' ? [] : ['decision' => $key]) }}#history"
+                       @if ($historyFilter === $key) aria-current="page" @endif
+                       class="rounded-full border px-3 py-1 text-xs font-medium transition-colors
+                              {{ $historyFilter === $key
+                                  ? 'border-navy-800 bg-navy-800 text-white'
+                                  : 'border-[--color-line-strong] text-[--color-ink-soft] hover:bg-navy-50' }}">
+                        {{ $label }} <span class="ml-0.5 opacity-75">{{ $historyCounts[$key] }}</span>
+                    </a>
+                @endforeach
+            </nav>
+        </div>
+
+        @if ($history->isEmpty())
+            <p class="px-5 py-8 text-center text-sm text-[--color-ink-muted]">
+                @if ($historyFilter === 'all')
+                    Requests you approve or reject will appear here.
+                @else
+                    No {{ $historyFilter }} requests yet.
+                @endif
+            </p>
+        @else
+            <div class="overflow-x-auto">
+                <table class="gh-table">
+                    <thead>
+                        <tr>
+                            <th scope="col">Request No.</th>
+                            <th scope="col">Guest</th>
+                            <th scope="col">Stay</th>
+                            <th scope="col">Your decision</th>
+                            <th scope="col">Decided on</th>
+                            <th scope="col">Current status</th>
+                            <th scope="col"><span class="sr-only">Actions</span></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach ($history as $r)
+                            @php
+                                $wasRejected = $r->status === \App\Domain\Enums\RequestStatus::REJECTED_MANAGER;
+                            @endphp
+                            <tr>
+                                <td class="font-medium text-[--color-ink]">{{ $r->request_no }}</td>
+                                <td class="text-[--color-ink-soft]">
+                                    {{ $r->guestName() }}
+                                    <span class="block text-xs text-[--color-ink-faint]">{{ $r->bookingSummary() }}</span>
+                                </td>
+                                <td class="whitespace-nowrap text-[--color-ink-soft]">
+                                    {{ $r->check_in_date->format('d/m/Y') }}
+                                    <span class="text-[--color-ink-faint]">&rarr;</span>
+                                    {{ $r->check_out_date->format('d/m/Y') }}
+                                </td>
+                                <td>
+                                    <span class="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold
+                                                 {{ $wasRejected ? 'bg-red-50 text-red-800 ring-1 ring-red-200' : 'bg-green-50 text-green-800 ring-1 ring-green-200' }}">
+                                        {{ $wasRejected ? 'Rejected' : 'Approved' }}
+                                    </span>
+                                    @if ($r->manager_remarks)
+                                        <span class="mt-1 block max-w-xs truncate text-xs text-[--color-ink-faint]" title="{{ $r->manager_remarks }}">{{ $r->manager_remarks }}</span>
+                                    @endif
+                                </td>
+                                <td class="whitespace-nowrap text-[--color-ink-soft]">{{ $r->manager_acted_at->format('d/m/Y H:i') }}</td>
+                                <td><x-status :status="$r->status" /></td>
+                                <td class="text-right">
+                                    <a href="{{ route('manager.requests.show', $r) }}"
+                                       class="text-sm font-medium text-navy-700 hover:underline">View</a>
+                                </td>
+                            </tr>
+                        @endforeach
+                    </tbody>
+                </table>
+            </div>
+
+            @if ($history->hasPages())
+                <div class="border-t border-[--color-line] px-5 py-3">{{ $history->links() }}</div>
+            @endif
+        @endif
+    </section>
 @endsection

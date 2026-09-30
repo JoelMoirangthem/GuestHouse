@@ -77,7 +77,11 @@ class AvailabilityAccessTest extends TestCase
     {
         $request = $this->approved();
 
-        foreach ([$this->employee, $this->manager, $this->adg] as $actor) {
+        // The Manager runs the booking operation, so only the employee and the
+        // ADG are refused.
+        $this->actingAs($this->manager)->get(route('admin.availability.show', $request))->assertOk();
+
+        foreach ([$this->employee, $this->adg] as $actor) {
             $this->actingAs($actor)
                 ->get(route('admin.availability.show', $request))
                 ->assertForbidden();
@@ -89,7 +93,11 @@ class AvailabilityAccessTest extends TestCase
     {
         $request = $this->approved();
 
-        foreach ([$this->employee, $this->manager, $this->adg] as $actor) {
+        $this->actingAs($this->manager)->get(route('admin.allotments.index'))->assertOk();
+        $this->actingAs($this->manager)->get(route('admin.allotments.create', $request))->assertOk();
+        $this->actingAs($this->manager)->get(route('admin.inventory'))->assertOk();
+
+        foreach ([$this->employee, $this->adg] as $actor) {
             $this->actingAs($actor)->get(route('admin.allotments.index'))->assertForbidden();
             $this->actingAs($actor)->get(route('admin.allotments.create', $request))->assertForbidden();
             $this->actingAs($actor)->post(route('admin.allotments.store', $request), ['room_ids' => [1]])->assertForbidden();
@@ -150,14 +158,16 @@ class AvailabilityAccessTest extends TestCase
         // A console command or queued job calling it must be refused too.
         $request = $this->approved();
 
-        foreach ([$this->employee, $this->manager, $this->adg] as $actor) {
+        foreach ([$this->employee, $this->adg] as $actor) {
             try {
                 app(AvailabilityService::class)->summaryForRequest($request, $actor);
                 $this->fail("Role {$actor->role->slug} obtained an availability summary.");
             } catch (AuthorizationException $e) {
-                $this->assertStringContainsString('Administration only', $e->getMessage());
+                $this->assertStringContainsString('Manager or the Administration only', $e->getMessage());
             }
         }
+
+        $this->assertIsArray(app(AvailabilityService::class)->summaryForRequest($request, $this->manager));
     }
 
     // --------------------------------------- CORE RULE 1: only after approval

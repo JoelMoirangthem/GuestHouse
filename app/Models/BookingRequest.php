@@ -64,24 +64,30 @@ class BookingRequest extends Model
 
     // ---------------------------------------------------------------- relations
 
+    // These four all point at a User (SoftDeletes). A booking still belongs to
+    // its applicant, host, manager and ADG even after that account is later
+    // deactivated, so the relations must keep resolving trashed users. Without
+    // withTrashed() a deactivated applicant makes requester() return null, and
+    // every approval, allotment and notification that reads requester->... then
+    // fails with a 500 ("Attempt to read property on null").
     public function requester(): BelongsTo
     {
-        return $this->belongsTo(User::class, 'user_id');
+        return $this->belongsTo(User::class, 'user_id')->withTrashed();
     }
 
     public function hostEmployee(): BelongsTo
     {
-        return $this->belongsTo(User::class, 'host_employee_id');
+        return $this->belongsTo(User::class, 'host_employee_id')->withTrashed();
     }
 
     public function manager(): BelongsTo
     {
-        return $this->belongsTo(User::class, 'manager_id');
+        return $this->belongsTo(User::class, 'manager_id')->withTrashed();
     }
 
     public function adg(): BelongsTo
     {
-        return $this->belongsTo(User::class, 'adg_id');
+        return $this->belongsTo(User::class, 'adg_id')->withTrashed();
     }
 
     public function occupants(): HasMany
@@ -151,6 +157,44 @@ class BookingRequest extends Model
     public function primaryOccupant(): ?RequestOccupant
     {
         return $this->occupants->firstWhere('is_primary', true);
+    }
+
+    /**
+     * Who the booking is for: the primary guest, not the account that made it.
+     *
+     * For a training or guest booking — typically raised by the Manager — the
+     * requester's name says nothing about who is arriving, so screens show the
+     * guest instead. Falls back to the requester when no occupant is recorded.
+     */
+    public function guestName(): string
+    {
+        return $this->primaryOccupant()?->name
+            ?? $this->occupants->first()?->name
+            ?? $this->requester?->name
+            ?? '—';
+    }
+
+    /**
+     * One-line booking summary: purpose plus the programme, e.g.
+     * "Training · Induction for IRS Probationers".
+     *
+     * The host is added ("Guest Visit · host: A. Sharma") only when the Manager
+     * made the booking while signed in. Other guest bookings — notably those
+     * from the public landing page, which fill the host in automatically with
+     * the applicant — show just "Guest Visit".
+     */
+    public function bookingSummary(): string
+    {
+        $showHost = $this->requester?->isManager() ?? false;
+
+        $detail = match (true) {
+            filled($this->training_programme) => $this->training_programme,
+            $showHost && $this->hostEmployee !== null => 'host: '.$this->hostEmployee->name,
+            $showHost && filled($this->guest_of_name) => 'host: '.$this->guest_of_name,
+            default => null,
+        };
+
+        return $this->purpose->label().($detail ? ' · '.$detail : '');
     }
 
     /**

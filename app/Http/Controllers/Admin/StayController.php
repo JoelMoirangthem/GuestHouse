@@ -34,20 +34,20 @@ class StayController extends Controller
             'arrivals' => BookingRequest::query()
                 ->where('status', RequestStatus::ALLOTTED->value)
                 ->whereDate('check_in_date', '<=', today())
-                ->with('requester')
+                ->with(['requester', 'occupants'])
                 ->orderBy('check_in_date')
                 ->get(),
 
             'inResidence' => BookingRequest::query()
                 ->whereIn('status', [RequestStatus::CHECKED_IN->value, RequestStatus::EXTENSION_REQUESTED->value])
-                ->with('requester')
+                ->with(['requester', 'occupants'])
                 ->orderBy('check_out_date')
                 ->get(),
 
             'departures' => BookingRequest::query()
                 ->where('status', RequestStatus::CHECKED_IN->value)
                 ->whereDate('check_out_date', '<=', today())
-                ->with('requester')
+                ->with(['requester', 'occupants'])
                 ->orderBy('check_out_date')
                 ->get(),
 
@@ -60,7 +60,7 @@ class StayController extends Controller
             'upcoming' => BookingRequest::query()
                 ->where('status', RequestStatus::ALLOTTED->value)
                 ->whereDate('check_in_date', '>', today())
-                ->with('requester')
+                ->with(['requester', 'occupants'])
                 ->orderBy('check_in_date')
                 ->limit(10)
                 ->get(),

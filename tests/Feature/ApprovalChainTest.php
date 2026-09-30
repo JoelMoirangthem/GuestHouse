@@ -6,6 +6,7 @@ namespace Tests\Feature;
 
 use App\Domain\Enums\RequestStatus;
 use App\Domain\Enums\RoleSlug;
+use App\Domain\Enums\VisitPurpose;
 use App\Models\AuditLog;
 use App\Models\BookingRequest;
 use App\Models\RequestDocument;
@@ -13,7 +14,9 @@ use App\Models\RequestOccupant;
 use App\Models\User;
 use Database\Seeders\RolePermissionSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Route;
+use Illuminate\Support\Facades\Storage;
 use PHPUnit\Framework\Attributes\Test;
 use Tests\TestCase;
 
@@ -74,50 +77,86 @@ class ApprovalChainTest extends TestCase
         return $request->refresh();
     }
 
+    /**
+     * Form payload for a booking the Manager raises for themselves.
+     *
+     * @return array<string, mixed>
+     */
+    private function ownBookingPayload(): array
+    {
+        Storage::fake('private');
+
+        return [
+            'purpose' => VisitPurpose::SELF->value,
+            'check_in_date' => now()->addDays(5)->format('Y-m-d'),
+            'check_out_date' => now()->addDays(7)->format('Y-m-d'),
+            'total_members' => 1,
+            'contact_mobile' => '9876543210',
+            'contact_email' => 'manager@nadt.gov.in',
+            'occupants' => [
+                ['name' => 'Visiting Dignitary', 'age' => 55, 'gender' => 'M', 'id_proof_type' => 'AADHAAR', 'id_proof_number' => '123456781234'],
+            ],
+            'documents' => [UploadedFile::fake()->create('Aadhaar Card.pdf', 120, 'application/pdf')],
+        ];
+    }
+
     // ------------------------------------------------------- the happy path
 
     #[Test]
-    public function a_request_is_approved_by_the_manager_and_goes_straight_to_awaiting_allotment(): void
+    public function a_request_is_approved_by_the_manager_with_rooms_and_is_allotted(): void
     {
         $request = $this->pendingRequest();
 
-        // The only approval — Manager approves and the request goes directly to
-        // the Administration for room allotment. No ADG step.
-        $this->actingAs($this->manager)
-            ->post(route('manager.requests.approve', $request), ['remarks' => 'Recommended.'])
+        // The only approval — the Manager picks the room(s) and approves, which
+        // allots them in the same step. No ADG step.
+        $this->approveWithRooms($this->manager, $request, ['remarks' => 'Recommended.'])
+            ->assertSessionHasNoErrors()
             ->assertRedirect(route('manager.requests.index'));
 
         $request->refresh();
-        $this->assertSame(RequestStatus::PENDING_ALLOTMENT, $request->status);
+        $this->assertSame(RequestStatus::ALLOTTED, $request->status);
         $this->assertSame($this->manager->id, $request->manager_id);
         $this->assertNotNull($request->manager_acted_at);
-
-        // Core Rule 1: availability was never consulted during approval.
-        $this->assertNull($request->availability_checked_at);
-        $this->assertTrue($request->status->allowsAvailabilityCheck());
+        $this->assertSame(1, $request->allotments()->occupying()->count());
     }
 
     #[Test]
-    public function the_manager_approval_writes_exactly_one_audit_entry(): void
+    public function approving_without_selecting_a_room_is_refused(): void
     {
         $request = $this->pendingRequest();
 
-        $this->actingAs($this->manager)->post(route('manager.requests.approve', $request));
+        $this->actingAs($this->manager)
+            ->post(route('manager.requests.approve', $request), ['remarks' => 'Recommended.'])
+            ->assertSessionHasErrors('room_ids');
 
-        $entries = AuditLog::where('auditable_id', $request->id)->orderBy('id')->get();
+        $this->assertSame(RequestStatus::PENDING_MANAGER, $request->fresh()->status);
+        $this->assertSame(0, AuditLog::where('auditable_id', $request->id)->count());
+    }
 
-        $this->assertCount(1, $entries);
+    #[Test]
+    public function the_manager_approval_is_audited_once_followed_by_the_allotment(): void
+    {
+        $request = $this->pendingRequest();
+
+        $this->approveWithRooms($this->manager, $request);
+
+        $entries = AuditLog::where('auditable_id', $request->id)
+            ->whereNotNull('to_status')->orderBy('id')->get();
+
+        $this->assertCount(2, $entries);
         $this->assertSame('MANAGER_APPROVED', $entries[0]->action);
         $this->assertSame('PENDING_MANAGER', $entries[0]->from_status);
         $this->assertSame('PENDING_ALLOTMENT', $entries[0]->to_status);
         $this->assertSame($this->manager->id, $entries[0]->actor_id);
+        $this->assertSame('ROOMS_CONFIRMED', $entries[1]->action);
+        $this->assertSame('ALLOTTED', $entries[1]->to_status);
     }
 
     #[Test]
     public function the_audit_trail_cannot_be_edited_or_deleted(): void
     {
         $request = $this->pendingRequest();
-        $this->actingAs($this->manager)->post(route('manager.requests.approve', $request));
+        $this->approveWithRooms($this->manager, $request);
 
         $entry = AuditLog::firstOrFail();
 
@@ -171,9 +210,9 @@ class ApprovalChainTest extends TestCase
         $this->assertSame(RequestStatus::PENDING_MANAGER, $request->status);
         $this->assertNotNull($request->resubmitted_at);
 
-        // And the Manager can now approve it, which sends it to allotment.
-        $this->actingAs($this->manager)->post(route('manager.requests.approve', $request));
-        $this->assertSame(RequestStatus::PENDING_ALLOTMENT, $request->fresh()->status);
+        // And the Manager can now approve it, allotting the room.
+        $this->approveWithRooms($this->manager, $request)->assertSessionHasNoErrors();
+        $this->assertSame(RequestStatus::ALLOTTED, $request->fresh()->status);
     }
 
     #[Test]
@@ -286,8 +325,11 @@ class ApprovalChainTest extends TestCase
     }
 
     #[Test]
-    public function a_manager_cannot_act_on_a_request_from_another_managers_team(): void
+    public function the_manager_can_act_on_any_request_whatever_the_reporting_line(): void
     {
+        // There is a single Manager who decides every booking, so a request
+        // whose applicant reports elsewhere (or whose reporting line changed
+        // after submission) must still be actionable.
         $otherManager = User::factory()->role(RoleSlug::MANAGER)->create();
         $otherEmployee = User::factory()->role(RoleSlug::USER)->reportingTo($otherManager)->create();
 
@@ -297,8 +339,81 @@ class ApprovalChainTest extends TestCase
             ->create();
 
         $this->actingAs($this->manager)
+            ->get(route('manager.requests.index'))
+            ->assertOk()
+            ->assertSee($request->request_no);
+
+        $this->approveWithRooms($this->manager, $request)->assertSessionHasNoErrors();
+
+        $this->assertSame(RequestStatus::ALLOTTED, $request->fresh()->status);
+        $this->assertSame($this->manager->id, $request->fresh()->manager_id);
+    }
+
+    #[Test]
+    public function the_managers_own_booking_is_approved_immediately_as_a_reservation(): void
+    {
+        // e.g. a room reserved by the Manager for a visiting VIP. The Manager is
+        // the only approver, so it skips the review queue.
+        $this->actingAs($this->manager)
+            ->post(route('my.requests.store'), $this->ownBookingPayload())
+            ->assertRedirect()
+            ->assertSessionHas('success', fn ($m) => str_contains($m, 'approved'));
+
+        $request = BookingRequest::where('user_id', $this->manager->id)->firstOrFail();
+        $this->assertSame(RequestStatus::PENDING_ALLOTMENT, $request->status);
+        $this->assertSame($this->manager->id, $request->manager_id);
+        $this->assertNotNull($request->manager_acted_at);
+        $this->assertSame('Reserved directly by the Manager.', $request->manager_remarks);
+
+        // Not left in the Manager's queue; it is in their decision history.
+        // (The first visit consumes the one-time success banner.)
+        $this->actingAs($this->manager)->get(route('manager.requests.index'));
+        [$queue, $history] = explode('id="history"', $this->actingAs($this->manager)
+            ->get(route('manager.requests.index'))->getContent(), 2);
+        $this->assertStringNotContainsString($request->request_no, $queue);
+        $this->assertStringContainsString($request->request_no, $history);
+
+        // The approval is audited like any other.
+        $this->assertSame(1, AuditLog::where('auditable_id', $request->id)->where('action', 'MANAGER_APPROVED')->count());
+    }
+
+    #[Test]
+    public function a_training_reservation_shows_the_guest_and_programme_not_just_the_manager(): void
+    {
+        $payload = $this->ownBookingPayload();
+        $payload['purpose'] = \App\Domain\Enums\VisitPurpose::TRAINING->value;
+        $payload['training_programme'] = 'Induction for IRS Probationers';
+
+        $this->actingAs($this->manager)->post(route('my.requests.store'), $payload)->assertSessionHasNoErrors();
+
+        $request = BookingRequest::firstOrFail();
+        $this->assertSame('Visiting Dignitary', $request->guestName());
+
+        // The Administration's allotment queue, where the reservation lands.
+        $this->actingAs($this->admin)->get(route('admin.allotments.index'))
+            ->assertOk()
+            ->assertSee('Visiting Dignitary')
+            ->assertSee('Induction for IRS Probationers');
+    }
+
+    #[Test]
+    public function an_employees_booking_still_waits_for_the_manager(): void
+    {
+        $this->actingAs($this->employee)
+            ->post(route('my.requests.store'), $this->ownBookingPayload())
+            ->assertRedirect();
+
+        $this->assertSame(RequestStatus::PENDING_MANAGER, BookingRequest::firstOrFail()->status);
+    }
+
+    #[Test]
+    public function a_non_manager_cannot_approve(): void
+    {
+        $request = $this->pendingRequest();
+
+        $this->actingAs($this->employee)
             ->post(route('manager.requests.approve', $request))
-            ->assertSessionHasErrors('action');
+            ->assertForbidden();
 
         $this->assertSame(RequestStatus::PENDING_MANAGER, $request->fresh()->status);
     }
@@ -308,13 +423,12 @@ class ApprovalChainTest extends TestCase
     {
         $request = $this->pendingRequest();
 
-        $this->actingAs($this->manager)->post(route('manager.requests.approve', $request));
-        $this->assertSame(RequestStatus::PENDING_ALLOTMENT, $request->fresh()->status);
+        $this->approveWithRooms($this->manager, $request);
+        $this->assertSame(RequestStatus::ALLOTTED, $request->fresh()->status);
 
         // The second attempt must be refused by the state machine, not silently
         // re-applied.
-        $this->actingAs($this->manager)
-            ->post(route('manager.requests.approve', $request))
+        $this->approveWithRooms($this->manager, $request)
             ->assertSessionHasErrors('action');
 
         $this->assertSame(1, AuditLog::where('action', 'MANAGER_APPROVED')->count());
@@ -346,8 +460,7 @@ class ApprovalChainTest extends TestCase
         $this->assertTrue($request->status->isTerminal());
 
         // No further action can revive it.
-        $this->actingAs($this->manager)
-            ->post(route('manager.requests.approve', $request))
+        $this->approveWithRooms($this->manager, $request)
             ->assertSessionHasErrors('action');
     }
 

@@ -43,7 +43,9 @@ class RoomController extends Controller
                 ->when($stateFilter === 'active', fn ($q) => $q
                     ->where('status', RoomStatus::ACTIVE->value)
                     ->whereNull('blocked_from'))
-                ->orderByRaw('CAST(room_number AS UNSIGNED), room_number')
+                // Natural order ("9" before "10") without a MySQL-only CAST, so it
+                // also runs on PostgreSQL (Render): shorter numbers sort first.
+                ->orderByRaw('LENGTH(room_number), room_number')
                 ->paginate(40)
                 ->withQueryString(),
             'types' => RoomType::orderBy('sort_order')->get(),

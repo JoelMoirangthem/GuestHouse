@@ -221,15 +221,16 @@ class AllotmentLetterTest extends TestCase
     }
 
     #[Test]
-    public function the_admin_letter_route_is_admin_only(): void
+    public function the_letter_route_is_for_the_manager_and_admin_only(): void
     {
         $this->spyPdf();
         $request = $this->request();
         $allotment = Allotment::where('booking_request_id', $request->id)->firstOrFail();
 
         $this->actingAs($this->admin)->get(route('admin.allotments.letter', $allotment))->assertOk();
+        $this->actingAs($this->manager)->get(route('admin.allotments.letter', $allotment))->assertOk();
 
-        foreach ([$this->employee, $this->manager, User::factory()->role(RoleSlug::ADG)->create()] as $user) {
+        foreach ([$this->employee, User::factory()->role(RoleSlug::ADG)->create()] as $user) {
             $this->actingAs($user)->get(route('admin.allotments.letter', $allotment))->assertForbidden();
         }
     }

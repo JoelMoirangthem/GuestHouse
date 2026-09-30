@@ -15,12 +15,15 @@ RUN npm run build
 # 2) PHP runtime
 FROM php:8.2-apache
 
-# System libs for the required PHP extensions (gd, pdo_mysql, pdo_pgsql, mbstring, zip).
+# System libs for the required PHP extensions (gd, pdo_mysql, pdo_pgsql, mbstring, zip, bcmath).
 # libonig-dev provides oniguruma, required to build mbstring.
+# bcmath is REQUIRED: room allotment computes the booking total with bcmul().
+# It is not in the base php image; without it approving with rooms fails (500).
 RUN apt-get update && apt-get install -y --no-install-recommends \
         libpng-dev libjpeg-dev libfreetype6-dev libzip-dev libpq-dev libonig-dev zip unzip git \
     && docker-php-ext-configure gd --with-freetype --with-jpeg \
-    && docker-php-ext-install -j"$(nproc)" gd pdo_mysql pdo_pgsql mbstring zip \
+    && docker-php-ext-install -j"$(nproc)" gd pdo_mysql pdo_pgsql mbstring zip bcmath \
+    && php -r "exit(function_exists('bcmul') ? 0 : 1);" \
     && apt-get clean && rm -rf /var/lib/apt/lists/*
 
 # Composer

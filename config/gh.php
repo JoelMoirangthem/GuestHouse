@@ -16,6 +16,14 @@ return [
     'pin' => env('GH_PIN', '226002'),
 
     /**
+     * Master switch for booking notifications: emails, the in-app bell and the
+     * stay reminders. Off by default — the system works silently. Set
+     * GH_NOTIFICATIONS_ENABLED=true in .env to turn them back on. Password
+     * reset emails are not affected; they are needed to sign in.
+     */
+    'notifications_enabled' => (bool) env('GH_NOTIFICATIONS_ENABLED', false),
+
+    /**
      * Reception desk, shown on the public landing page as tap-to-call links.
      * Comma-separated in .env: GH_RECEPTION_PHONES="9918143306,9415984377"
      */

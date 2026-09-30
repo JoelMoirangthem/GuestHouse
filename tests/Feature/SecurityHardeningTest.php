@@ -74,13 +74,60 @@ class SecurityHardeningTest extends TestCase
     {
         // Laravel skips CSRF verification under unit tests, so raise the exact
         // exception VerifyCsrfToken throws and let the real handler render it.
+        // A JSON caller still gets the 419 page; browsers are redirected (below).
         config(['app.debug' => false]);
         Route::post('/_test/csrf', fn () => throw new \Illuminate\Session\TokenMismatchException('CSRF token mismatch.'))->middleware('web');
 
+        $this->postJson('/_test/csrf')
+            ->assertStatus(419);
+
+        // No usable referer: the browser lands on sign-in, never on an error page.
         $this->post('/_test/csrf')
-            ->assertStatus(419)
-            ->assertSee('Your session has expired')
-            ->assertDontSee('CSRF token mismatch');
+            ->assertRedirect(route('login'))
+            ->assertSessionHasErrors('session');
+    }
+
+    #[Test]
+    public function an_expired_sign_in_form_returns_to_the_form_with_the_email_kept(): void
+    {
+        config(['app.debug' => false]);
+        Route::post('/_test/csrf', fn () => throw new \Illuminate\Session\TokenMismatchException('CSRF token mismatch.'))->middleware('web');
+
+        $this->withHeader('referer', route('login'))
+            ->post('/_test/csrf', ['email' => 'manager@nadt.gov.in', 'password' => 'secret-value'])
+            ->assertRedirect(route('login'))
+            ->assertSessionHasErrors(['session' => 'This page had been open for a while, so it was refreshed. Please submit again.'])
+            ->assertSessionHasInput('email', 'manager@nadt.gov.in')
+            ->assertSessionMissing('_old_input.password');
+
+        $this->get(route('login'))
+            ->assertOk()
+            ->assertSee('This page had been open for a while')
+            ->assertSee('value="manager@nadt.gov.in"', false);
+    }
+
+    #[Test]
+    public function an_idle_signed_in_page_goes_to_sign_in_and_returns_afterwards(): void
+    {
+        config(['app.debug' => false]);
+        Route::post('/_test/csrf', fn () => throw new \Illuminate\Session\TokenMismatchException('CSRF token mismatch.'))->middleware('web');
+
+        $this->withHeader('referer', route('home'))
+            ->post('/_test/csrf')
+            ->assertRedirect(route('login'))
+            ->assertSessionHasErrors('session')
+            ->assertSessionHas('url.intended', route('home'));
+    }
+
+    #[Test]
+    public function only_guest_pages_keep_their_form_token_fresh(): void
+    {
+        $this->get(route('login'))->assertSee('name="gh-csrf-refresh"', false);
+        $this->get(route('public.booking'))->assertSee('name="gh-csrf-refresh"', false);
+
+        // Signed in, the idle timeout must stay in force: no keep-alive.
+        $user = \App\Models\User::factory()->create();
+        $this->actingAs($user)->get(route('public.booking'))->assertDontSee('name="gh-csrf-refresh"', false);
     }
 
     // ============================================================ headers

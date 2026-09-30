@@ -30,7 +30,7 @@
       action="{{ route('public.booking.store') }}"
       enctype="multipart/form-data"
       novalidate
-      @submit="setTimeout(() => submitting = true, 0)"
+      @submit="if (! agreed) { $event.preventDefault(); openTerms(); return; } setTimeout(() => submitting = true, 0)"
       x-data="{
           submitting: false,
           purpose: @js(old('purpose', '')),
@@ -94,9 +94,10 @@
                 </div>
 
                 <div>
-                    <label for="contact_mobile" class="gh-label">Contact Number <span class="text-[--color-ink-muted]">(optional)</span></label>
+                    <label for="contact_mobile" class="gh-label gh-required">Contact Number</label>
                     <input id="contact_mobile" name="contact_mobile" type="tel" inputmode="numeric"
-                           autocomplete="tel-national" maxlength="10" class="gh-input"
+                           autocomplete="tel-national" maxlength="10" class="gh-input" required
+                           pattern="[6-9][0-9]{9}" title="Enter a valid 10-digit mobile number"
                            placeholder="Enter mobile number" value="{{ old('contact_mobile') }}"
                            aria-describedby="help-mobile @error('contact_mobile') err-mobile @enderror"
                            @error('contact_mobile') aria-invalid="true" @enderror>
@@ -256,8 +257,11 @@
     <div class="fixed inset-x-0 bottom-0 z-20 border-t border-[--color-line] bg-white/95 px-4 py-3 backdrop-blur"
          style="padding-bottom: max(0.75rem, env(safe-area-inset-bottom))">
         <div class="mx-auto max-w-xl">
-            <button type="submit" class="gh-btn gh-btn-primary w-full py-3 text-base"
-                    :disabled="submitting || fileError !== ''">
+            {{-- type="button" on purpose: this opens the Terms & Conditions. Only
+                 "Final Submit" inside the dialog, shown once the box is ticked,
+                 actually posts the form. Do not change this to type="submit". --}}
+            <button type="button" class="gh-btn gh-btn-primary w-full py-3 text-base"
+                    @click="openTerms()" :disabled="submitting || fileError !== ''">
                 <span x-text="submitting ? 'Submitting…' : 'Submit Requisition'">Submit Requisition</span>
             </button>
         </div>

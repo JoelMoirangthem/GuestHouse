@@ -70,16 +70,16 @@ class ManagementInventoryTest extends TestCase
     }
 
     #[Test]
-    public function the_manager_has_no_inventory_page(): void
+    public function the_manager_uses_the_full_room_inventory(): void
     {
-        // Removed on 2026-09-29: the Manager sees rooms only on the review
-        // screen's room board (PLAN.md decision 10).
+        // The Manager runs the booking operation, so they use the same Room
+        // Inventory as the Administration rather than a separate manager page.
         $this->assertFalse(\Illuminate\Support\Facades\Route::has('manager.inventory'));
-        $this->actingAs($this->manager)->get('/manager/inventory')->assertNotFound();
-        $this->assertFalse($this->manager->hasPermission('inventory.view'));
+        $this->assertTrue($this->manager->hasPermission('inventory.view'));
 
         $this->actingAs($this->manager)->get(route('manager.requests.index'))
-            ->assertOk()->assertDontSee('Room Inventory');
+            ->assertOk()->assertSee('Room Inventory');
+        $this->actingAs($this->manager)->get(route('admin.inventory'))->assertOk();
     }
 
     #[Test]
@@ -120,9 +120,11 @@ class ManagementInventoryTest extends TestCase
     }
 
     #[Test]
-    public function management_still_cannot_run_the_date_range_search(): void
+    public function the_adg_still_cannot_run_the_date_range_search(): void
     {
+        // The Manager runs allotment and may search dates (admin.inventory);
+        // the ADG sees only tonight's counts.
         $this->expectException(AuthorizationException::class);
-        app(AvailabilityService::class)->summary('2026-10-17', '2026-10-19', $this->manager);
+        app(AvailabilityService::class)->summary('2026-10-17', '2026-10-19', $this->adg);
     }
 }
