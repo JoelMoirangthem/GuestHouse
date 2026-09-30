@@ -47,7 +47,6 @@ class RoleIsolationMatrixTest extends TestCase
             'manager queue' => ['manager.requests.index', 'manager'],
             'adg queue' => ['adg.requests.index', 'adg'],
             // Booking operations: the Manager runs them, the Admin can too.
-            'room inventory' => ['admin.inventory', 'manager,admin'],
             'allotment queue' => ['admin.allotments.index', 'manager,admin'],
             'front desk' => ['admin.stays.index', 'manager,admin'],
             // System setup stays with the Admin.

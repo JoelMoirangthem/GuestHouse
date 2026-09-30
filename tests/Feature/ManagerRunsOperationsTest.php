@@ -119,7 +119,7 @@ class ManagerRunsOperationsTest extends TestCase
             ->assertSee('Pending Review')
             ->assertSee('Allotment Queue')
             ->assertSee('Front Desk')
-            ->assertSee('Room Inventory')
+            ->assertDontSee('Room Inventory')
             ->assertDontSee(route('admin.users.index'), false)
             ->assertDontSee(route('admin.settings.edit'), false);
 

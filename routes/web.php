@@ -13,7 +13,6 @@ use App\Http\Controllers\Admin\GoogleMailController;
 use App\Http\Controllers\Admin\HolidayController;
 use App\Http\Controllers\Admin\IdProofRevealController;
 use App\Http\Controllers\Admin\RoomController;
-use App\Http\Controllers\Admin\RoomInventoryController;
 use App\Http\Controllers\Admin\RoomTypeController;
 use App\Http\Controllers\Admin\StayController;
 use App\Http\Controllers\Admin\TariffController;
@@ -25,7 +24,6 @@ use App\Http\Controllers\Manager\ReviewController;
 use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\PublicBookingController;
 use App\Http\Controllers\Shared\DocumentController;
-use App\Http\Controllers\Shared\ManagementInventoryController;
 use App\Http\Controllers\User\BookingRequestController;
 use App\Http\Controllers\User\ExtensionController;
 use App\Http\Controllers\User\FeedbackController;
@@ -122,7 +120,7 @@ Route::middleware('auth')->group(function () {
         Route::post('/requests/{bookingRequest}/approve', [ReviewController::class, 'approve'])->name('requests.approve');
         Route::post('/requests/{bookingRequest}/reject', [ReviewController::class, 'reject'])->name('requests.reject');
         Route::post('/requests/{bookingRequest}/more-info', [ReviewController::class, 'moreInfo'])->name('requests.moreInfo');
-        // No inventory page: the Manager sees rooms only on the review screen's
+        // No inventory page: the Manager sees rooms on the review screen's
         // room board, for the request in front of them (PLAN.md decision 10).
     });
 
@@ -135,7 +133,6 @@ Route::middleware('auth')->group(function () {
         Route::get('/requests/{bookingRequest}', [ApprovalController::class, 'show'])->name('requests.show');
         Route::post('/requests/{bookingRequest}/approve', [ApprovalController::class, 'approve'])->name('requests.approve');
         Route::post('/requests/{bookingRequest}/reject', [ApprovalController::class, 'reject'])->name('requests.reject');
-        Route::get('/inventory', [ManagementInventoryController::class, 'index'])->name('inventory');
     });
 
     // --- Booking operations (Manager and Admin) ----------------------------
@@ -166,8 +163,6 @@ Route::middleware('auth')->group(function () {
         Route::post('/stays/qr', [StayController::class, 'qrCheckIn'])->name('stays.qr');
         Route::post('/extensions/{extension}/approve', [StayController::class, 'approveExtension'])->name('extensions.approve');
         Route::post('/extensions/{extension}/deny', [StayController::class, 'denyExtension'])->name('extensions.deny');
-
-        Route::get('/inventory', [RoomInventoryController::class, 'index'])->name('inventory');
     });
 
     // --- Admin -----------------------------------------------------------

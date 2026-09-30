@@ -95,13 +95,24 @@ class AvailabilityAccessTest extends TestCase
 
         $this->actingAs($this->manager)->get(route('admin.allotments.index'))->assertOk();
         $this->actingAs($this->manager)->get(route('admin.allotments.create', $request))->assertOk();
-        $this->actingAs($this->manager)->get(route('admin.inventory'))->assertOk();
 
         foreach ([$this->employee, $this->adg] as $actor) {
             $this->actingAs($actor)->get(route('admin.allotments.index'))->assertForbidden();
             $this->actingAs($actor)->get(route('admin.allotments.create', $request))->assertForbidden();
             $this->actingAs($actor)->post(route('admin.allotments.store', $request), ['room_ids' => [1]])->assertForbidden();
-            $this->actingAs($actor)->get(route('admin.inventory'))->assertForbidden();
+        }
+    }
+
+    #[Test]
+    public function the_room_inventory_screens_no_longer_exist(): void
+    {
+        $this->assertFalse(Route::has('admin.inventory'));
+        $this->assertFalse(Route::has('adg.inventory'));
+
+        foreach ([$this->manager, $this->adg] as $actor) {
+            $this->actingAs($actor)->get('/admin/inventory')->assertNotFound();
+            $this->actingAs($actor)->get('/adg/inventory')->assertNotFound();
+            $this->actingAs($actor)->get(route('home'))->assertRedirect();
         }
     }
 
@@ -111,10 +122,8 @@ class AvailabilityAccessTest extends TestCase
         // Structural assertion. A route that does not exist cannot be reached by a
         // crafted request, a mistaken middleware change, or a future refactor.
         //
-        // The only exceptions are the two read-only management inventory screens
-        // specified in ROUTES.md. They show tonight's counts and take no dates;
-        // ManagementInventoryTest proves a date range cannot be passed through.
-        $allowed = ['adg/inventory'];
+        // The Room Inventory screens were removed, so there are no exceptions.
+        $allowed = [];
 
         foreach (Route::getRoutes() as $route) {
             $uri = $route->uri();

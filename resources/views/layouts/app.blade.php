@@ -93,14 +93,6 @@
                                     Front Desk
                                 </a>
                             </li>
-                            <li>
-                                <a href="{{ route('admin.inventory') }}"
-                                   class="gh-nav-item @if (request()->routeIs('admin.inventory')) gh-nav-item-active @endif"
-                                   @if (request()->routeIs('admin.inventory')) aria-current="page" @endif>
-                                    <x-icon name="building" />
-                                    Room Inventory
-                                </a>
-                            </li>
                         @endif
 
                         @if ($role === 'admin')
@@ -160,17 +152,6 @@
                                    @if (request()->routeIs('adg.*')) aria-current="page" @endif>
                                     <x-icon name="check-badge" />
                                     Pending Approval
-                                </a>
-                            </li>
-                        @endif
-
-                        @if ($role === 'adg')
-                            <li>
-                                <a href="{{ route('adg.inventory') }}"
-                                   class="gh-nav-item @if (request()->routeIs('adg.inventory')) gh-nav-item-active @endif"
-                                   @if (request()->routeIs('adg.inventory')) aria-current="page" @endif>
-                                    <x-icon name="building" />
-                                    Room Inventory
                                 </a>
                             </li>
                         @endif
